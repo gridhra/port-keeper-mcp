@@ -6,3 +6,6 @@
 .env
 .env.*
 !.env.example
+
+# private per-machine notes for coding agents
+CLAUDE.local.md
