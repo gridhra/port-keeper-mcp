@@ -38,9 +38,9 @@
 
 ## 6. v0.1.0の公開
 
-- [ ] 6.1 1〜5が`main`に入りCIが緑であることを確かめてから、ユーザーの明示の指示を受けて`v0.1.0`をタグ付けしてpushする。確認: `release.yml`が成功する
-- [ ] 6.2 公開物を確かめる。確認: `gh release view v0.1.0 --json isDraft,assets`が`isDraft:false`とアーカイブ6個＋`checksums.txt`を返し、`gh attestation verify`が成功し、取得したバイナリの`--version`が`0.1.0`を含む
-- [ ] 6.3 この端末の`go install`版を消し、READMEの1行コマンドで入れ直す。確認: `port-keeper --version`が`0.1.0`で、既存の台帳のリースが残り、`port-keeper doctor`が緑。ROADMAPのM2の完了条件「新しい端末で5分で導入」に照らして所要時間を記録する
+- [x] 6.1 1〜5が`main`に入りCIが緑であることを確かめてから、ユーザーの明示の指示を受けて`v0.1.0`をタグ付けしてpushする。確認: `release.yml`が成功する
+- [x] 6.2 公開物を確かめる。確認: `gh release view v0.1.0 --json isDraft,assets`が`isDraft:false`とアーカイブ6個＋`checksums.txt`を返し、`gh attestation verify`が成功し、取得したバイナリの`--version`が`0.1.0`を含む
+- [x] 6.3 この端末の`go install`版を消し、READMEの1行コマンドで入れ直す。確認: `port-keeper --version`が`0.1.0`で、既存の台帳のリースが残り、`port-keeper doctor`が緑。ROADMAPのM2の完了条件「新しい端末で5分で導入」に照らして所要時間を記録する
 
 ## 7. 掲載
 
