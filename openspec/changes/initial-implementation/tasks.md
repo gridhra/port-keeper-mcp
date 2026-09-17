@@ -24,7 +24,7 @@
 
 - [x] 3.1 README（Non-goals、Working with coding agents、Security model）
 - [x] 3.2 SECURITY.md、issueテンプレート、docs/DESIGN.md §9実装ノート、docs/ROADMAP.md
-- [ ] 3.3 README.ja.md（初回リリース時）
+- [x] 3.3 README.ja.md・README.zh-CN.md
 
 ## 4. 配布（M2）
 

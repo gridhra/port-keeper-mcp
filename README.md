@@ -1,6 +1,6 @@
 # port-keeper-mcp
 
-**English** | 日本語 (coming with the first release)
+**English** | [日本語](README.ja.md) | [简体中文](README.zh-CN.md)
 
 A local ledger for development ports, with an MCP server on top, written in Go.
 
