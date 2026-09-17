@@ -1,0 +1,51 @@
+version: 2
+
+updates:
+  # Go module (go.mod / go.sum at the repo root).
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - go
+    commit-message:
+      prefix: "deps"
+      include: scope
+    groups:
+      # Roll every semver-compatible bump into a single PR to keep the noise
+      # low; majors stay separate so they get reviewed one at a time.
+      gomod-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+      # Security fixes are never held back by unrelated bumps, but a batch of
+      # advisories still lands as one PR.
+      gomod-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # Actions pinned by commit SHA in .github/workflows/*.yml.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions-all:
+        patterns:
+          - "*"
