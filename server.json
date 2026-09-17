@@ -1,0 +1,32 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.gridhra/port-keeper-mcp",
+  "title": "port-keeper-mcp",
+  "description": "Local ledger for development ports: leases a block per project slot, renders env files, resolves service names to URLs. No daemon, no listener, no secrets.",
+  "version": "0.0.0",
+  "websiteUrl": "https://github.com/gridhra/port-keeper-mcp",
+  "repository": {
+    "url": "https://github.com/gridhra/port-keeper-mcp",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "port-keeper-mcp",
+      "version": "0.0.0",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp",
+          "description": "Run the stdio MCP server. The project and slot are resolved from the client's working directory.",
+          "isRequired": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+# GoReleaser configuration (M2). Not yet exercised; see docs/ROADMAP.md.
+version: 2
+project_name: port-keeper
+builds:
+  - id: port-keeper
+    main: ./cmd/port-keeper
+    binary: port-keeper
+    env: [CGO_ENABLED=0]
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X github.com/gridhra/port-keeper-mcp/internal/cli.Version={{ .Version }}
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+checksum:
+  name_template: checksums.txt
+release:
+  draft: true
