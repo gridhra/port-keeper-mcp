@@ -30,4 +30,4 @@
 
 - [x] 4.1 CI（gofmt/vet/test）
 - [x] 4.2 GoReleaser設定（未実行）
-- [ ] 4.3 Homebrew tap・npmラッパー・MCPレジストリ登録
+- [x] 4.3 Homebrew tap・npmラッパー・MCPレジストリ登録 → 本changeでは行わず、change`distribution-v0-1`で結論を出した（2026-09-18）。npmラッパーは作らない（常設インストールに変更）。Homebrew tapとMCPレジストリ登録は`docs/ROADMAP.md`のM3（需要駆動）へ移した。理由は`docs/DESIGN.md`の§9.2
