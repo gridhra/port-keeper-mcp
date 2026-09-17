@@ -2,9 +2,9 @@
 
 ## 1. 公開前の実機確認
 
-- [ ] 1.1 この端末に`go install ./cmd/port-keeper`で入れ、`claude mcp add --scope user port-keeper -- port-keeper mcp`とREADMEのフック設定（SessionStart／CwdChanged）を行う。端末の`~/.claude/settings.json`とMCP登録を変えるので、着手前にユーザーへ変更内容を示して確認を取る。確認: 新しいClaude Codeセッションで`/mcp`に`port-keeper`が接続済みと出る
-- [ ] 1.2 架空の`shop`プロジェクト（一時ディレクトリ）で、既定で有効な6ツールと、設定で有効化する2ツールを実セッションから1回ずつ呼ぶ。確認: 全ツールが成功し、番号を返してよい3ツール（`resolve_url`／`resolve_port`／`render_env`）以外の結果にポート番号が無い。不具合は1件ずつ別commitで直す
-- [ ] 1.3 フックの動作を確かめる。確認: 作業コピー（cloneまたはgit worktree）を切り替えたセッションで、フックの出力にそのスロットの文脈が入る
+- [x] 1.1 この端末に`go install ./cmd/port-keeper`で入れ、`claude mcp add --scope user port-keeper -- port-keeper mcp`とREADMEのフック設定（SessionStart／CwdChanged）を行う。端末の`~/.claude/settings.json`とMCP登録を変えるので、着手前にユーザーへ変更内容を示して確認を取る。確認: 新しいClaude Codeセッションで`/mcp`に`port-keeper`が接続済みと出る
+- [x] 1.2 架空の`shop`プロジェクト（一時ディレクトリ）で、既定で有効な6ツールと、設定で有効化する2ツールを実セッションから1回ずつ呼ぶ。確認: 全ツールが成功し、番号を返してよい3ツール（`resolve_url`／`resolve_port`／`render_env`）以外の結果にポート番号が無い。不具合は1件ずつ別commitで直す
+- [x] 1.3 フックの動作を確かめる。確認: 作業コピー（cloneまたはgit worktree）を切り替えたセッションで、フックの出力にそのスロットの文脈が入る
 - [x] 1.4 ソースからビルドしたlinux/amd64バイナリを、Glamaと同じ構成（`debian:trixie-slim`とNodeと`mcp-proxy`）のコンテナに入れ、`port-keeper.toml`の無いディレクトリで`initialize`と`tools/list`を送る。確認: ツール一覧が返り、スキーマ検証で拒否されない（specの「公式TypeScript SDKクライアントとの互換」）
 
 ## 2. 台帳のスキーマの版
