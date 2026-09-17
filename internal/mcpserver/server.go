@@ -69,6 +69,11 @@ func (s *Server) ctx(ctx context.Context, cwd string) (*app.Context, error) {
 	if cwd == "" {
 		cwd = s.cwd
 	}
+	// This process outlives CLI runs; a newer binary may have upgraded the
+	// ledger since we opened it.
+	if err := s.app.Ledger.CheckSchema(ctx); err != nil {
+		return nil, err
+	}
 	c, err := s.app.Resolve(ctx, cwd, s.slot)
 	if err != nil {
 		if errors.Is(err, manifest.ErrNotFound) {
@@ -97,6 +102,9 @@ func (s *Server) pick(ctx context.Context, cwd, project, slot string) (*app.Cont
 	}
 	if slot == "" {
 		return nil, errors.New("slot is required when project is given")
+	}
+	if err := s.app.Ledger.CheckSchema(ctx); err != nil {
+		return nil, err
 	}
 	return s.app.LookupProject(ctx, project, slot)
 }
@@ -391,6 +399,9 @@ type ListOut struct {
 }
 
 func (s *Server) listAll(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, ListOut, error) {
+	if err := s.app.Ledger.CheckSchema(ctx); err != nil {
+		return fail(err), ListOut{}, nil
+	}
 	ps, err := s.app.Ledger.ListProjects(ctx)
 	if err != nil {
 		return fail(err), ListOut{}, nil

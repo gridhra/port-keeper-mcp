@@ -71,6 +71,77 @@ CREATE TABLE IF NOT EXISTS audit (
 );
 `
 
+// SchemaVersion is the ledger schema this binary reads and writes. It is
+// stored in the file as SQLite's user_version. Bump it together with a
+// migration step in migrate whenever the schema changes.
+const SchemaVersion = 1
+
+// NewerSchemaError reports a ledger written by a newer port-keeper. Binaries
+// of different versions can share one machine (an MCP server that keeps
+// running across an upgrade, a second install on PATH), so an older one must
+// stop rather than read or write a schema it does not know.
+type NewerSchemaError struct {
+	Found     int
+	Supported int
+}
+
+func (e *NewerSchemaError) Error() string {
+	return fmt.Sprintf("the ledger uses schema version %d, but this port-keeper only supports up to %d: a newer port-keeper has upgraded it. Update this binary (re-run the install script, or `go install github.com/gridhra/port-keeper-mcp/cmd/port-keeper@latest`) and restart any running MCP server", e.Found, e.Supported)
+}
+
+func readSchemaVersion(ctx context.Context, q interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}) (int, error) {
+	var v int
+	err := q.QueryRowContext(ctx, "PRAGMA user_version").Scan(&v)
+	return v, err
+}
+
+// migrate brings the file to SchemaVersion. It reads the version before
+// touching anything, so a newer ledger is left byte-for-byte as it was. A file
+// without a version (0) is either brand new or predates versioning; both hold
+// schema 1 once the idempotent CREATEs have run, and are stamped as such in
+// the same transaction.
+func migrate(db *sql.DB) error {
+	ctx := context.Background()
+	v, err := readSchemaVersion(ctx, db)
+	if err != nil {
+		return err
+	}
+	if v > SchemaVersion {
+		return &NewerSchemaError{Found: v, Supported: SchemaVersion}
+	}
+	if v == SchemaVersion {
+		return nil
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, schema); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", SchemaVersion)); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// CheckSchema re-reads the schema version. A long-running process (the MCP
+// server) calls it per request, because a newer CLI can upgrade the ledger
+// underneath it after Open succeeded.
+func (l *Ledger) CheckSchema(ctx context.Context) error {
+	v, err := readSchemaVersion(ctx, l.db)
+	if err != nil {
+		return err
+	}
+	if v > SchemaVersion {
+		return &NewerSchemaError{Found: v, Supported: SchemaVersion}
+	}
+	return nil
+}
+
 // Open creates the state directory (0700) and the ledger (0600) if needed and opens it.
 func Open(stateDir string) (*Ledger, error) {
 	if _, err := os.Stat(stateDir); errors.Is(err, os.ErrNotExist) {
@@ -104,7 +175,7 @@ func Open(stateDir string) (*Ledger, error) {
 	// handler does not always wait for, so retry briefly instead of failing.
 	var migrateErr error
 	for attempt := 0; attempt < 50; attempt++ {
-		_, migrateErr = db.Exec(schema)
+		migrateErr = migrate(db)
 		if migrateErr == nil {
 			break
 		}
@@ -116,6 +187,10 @@ func Open(stateDir string) (*Ledger, error) {
 	}
 	if migrateErr != nil {
 		_ = db.Close()
+		var newer *NewerSchemaError
+		if errors.As(migrateErr, &newer) {
+			return nil, migrateErr
+		}
 		return nil, fmt.Errorf("migrate ledger: %w", migrateErr)
 	}
 	// WAL side files inherit the directory mode; tighten them anyway when present.

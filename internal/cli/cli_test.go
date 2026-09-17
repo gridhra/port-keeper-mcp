@@ -3,14 +3,17 @@ package cli
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/gridhra/port-keeper-mcp/internal/app"
+	"github.com/gridhra/port-keeper-mcp/internal/ledger"
 )
 
 // run executes the CLI in dir with an isolated ledger and returns stdout+stderr.
@@ -285,5 +288,40 @@ func TestContextCommand(t *testing.T) {
 	out, code = cli(t, t.TempDir(), "context", "--json", "--if-present")
 	if code != 0 || out != "" {
 		t.Fatalf("context --if-present: %d %q", code, out)
+	}
+}
+
+// A ledger upgraded by a newer binary stops the CLI with instructions, not a
+// SQL error, and the ledger is left alone.
+func TestNewerLedgerStopsCLI(t *testing.T) {
+	state := t.TempDir()
+	t.Setenv("PORT_KEEPER_STATE_DIR", state)
+	t.Setenv("PORT_KEEPER_CONFIG_DIR", filepath.Join(state, "cfg"))
+	t.Setenv("PORT_KEEPER_SLOT", "")
+	dir := t.TempDir()
+	if out, code := cli(t, dir, "init", "--name", "shop"); code != 0 {
+		t.Fatalf("init: %d %s", code, out)
+	}
+	if out, code := cli(t, dir, "env"); code != 0 {
+		t.Fatalf("env: %d %s", code, out)
+	}
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(state, ledger.FileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("PRAGMA user_version = " + strconv.Itoa(ledger.SchemaVersion+1)); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+
+	out, code := cli(t, dir, "status")
+	if code == 0 {
+		t.Fatalf("status succeeded against a newer ledger: %s", out)
+	}
+	if !strings.Contains(out, "Update this binary") || strings.Contains(out, "migrate ledger") {
+		t.Fatalf("unhelpful message: %s", out)
+	}
+	if regexp.MustCompile(`\b2[0-9]{4}\b`).MatchString(out) {
+		t.Fatalf("message leaks a port number: %s", out)
 	}
 }

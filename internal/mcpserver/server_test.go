@@ -2,9 +2,12 @@ package mcpserver
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -35,6 +38,12 @@ proto = "tcp"
 
 func session(t *testing.T, enableAll bool) (*mcp.ClientSession, string) {
 	t.Helper()
+	cs, dir, _ := sessionWithLedger(t, enableAll)
+	return cs, dir
+}
+
+func sessionWithLedger(t *testing.T, enableAll bool) (*mcp.ClientSession, string, *ledger.Ledger) {
+	t.Helper()
 	l, err := ledger.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -60,7 +69,7 @@ func session(t *testing.T, enableAll bool) (*mcp.ClientSession, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cs.Close() })
-	return cs, dir
+	return cs, dir, l
 }
 
 func call(t *testing.T, cs *mcp.ClientSession, name string, args map[string]any) (*mcp.CallToolResult, map[string]any) {
@@ -184,6 +193,51 @@ func TestFlowAndDisclosure(t *testing.T) {
 	res, out = call(t, cs, "slot_release", map[string]any{"name": "1", "confirm": true})
 	if res.IsError || out["released"] == nil {
 		t.Fatalf("release: %+v", out)
+	}
+}
+
+// A server that is already running when a newer binary upgrades the ledger
+// must refuse every tool with an actionable, number-free error.
+func TestNewerLedgerFailsTools(t *testing.T) {
+	cs, _, l := sessionWithLedger(t, true)
+	if res, _ := call(t, cs, "slot_new", map[string]any{"name": "default"}); res.IsError {
+		t.Fatalf("slot_new before the upgrade: %+v", res)
+	}
+	db, err := sql.Open("sqlite", "file:"+l.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("PRAGMA user_version = " + strconv.Itoa(ledger.SchemaVersion+1)); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+
+	for _, tc := range []struct {
+		tool string
+		args map[string]any
+	}{
+		{"current_context", nil},
+		{"resolve_url", map[string]any{"service": "web"}},
+		{"resolve_url", map[string]any{"service": "web", "project": "shop", "slot": "default"}},
+		{"resolve_port", map[string]any{"service": "db"}},
+		{"render_env", nil},
+		{"status", nil},
+		{"slot_new", map[string]any{"name": "2"}},
+		{"slot_release", map[string]any{"name": "default"}},
+		{"list_all_projects", nil},
+	} {
+		res, _ := call(t, cs, tc.tool, tc.args)
+		if !res.IsError {
+			t.Errorf("%s %v succeeded against a newer ledger", tc.tool, tc.args)
+			continue
+		}
+		msg := res.Content[0].(*mcp.TextContent).Text
+		if !strings.Contains(msg, "Update this binary") {
+			t.Errorf("%s: error does not say how to recover: %s", tc.tool, msg)
+		}
+		if regexp.MustCompile(`\b2[0-9]{4}\b`).MatchString(msg) {
+			t.Errorf("%s: error leaks a port number: %s", tc.tool, msg)
+		}
 	}
 }
 
