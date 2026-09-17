@@ -35,3 +35,19 @@ jobs:
         run: |
           GOOS=windows GOARCH=amd64 go build ./...
           GOOS=linux GOARCH=arm64 go build ./...
+      - name: install script tests
+        run: sh scripts/install_test.sh
+
+  # The release path only runs on a tag, so its inputs are checked here.
+  release-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: shellcheck
+        run: shellcheck scripts/*.sh
+      - name: goreleaser check
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: v2.18.2 # keep in step with release.yml
+          args: check

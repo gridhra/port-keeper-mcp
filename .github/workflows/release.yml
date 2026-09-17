@@ -1,0 +1,112 @@
+name: release
+
+# Tag push -> six archives + checksums.txt + build provenance -> published
+# GitHub Release. No human step and no stored credential: the only token is the
+# per-run GITHUB_TOKEN. See RELEASING.md for the procedure and for what to do
+# when a run fails.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build, e.g. v0.1.0"
+        required: true
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+# Nothing by default; the one job below asks for what it needs.
+permissions: {}
+
+jobs:
+  release:
+    name: build, attest, publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # create and publish the GitHub Release
+      id-token: write # build provenance attestation
+      attestations: write
+    steps:
+      # A tag name can carry shell metacharacters, so it never goes into a run:
+      # line as an expression. It arrives through env and is validated first.
+      - name: Resolve version
+        env:
+          TAG_IN: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG_IN" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::invalid tag: $TAG_IN"; exit 1; }
+          echo "TAG=$TAG_IN" >> "$GITHUB_ENV"
+          echo "VERSION=${TAG_IN#v}" >> "$GITHUB_ENV"
+
+      # Published assets are immutable. A re-run on a tag that is already out
+      # must not try to rebuild them; it stops here, successfully.
+      - name: Stop if the release is already published
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft' 2>/dev/null | grep -qx false; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::release $TAG is already published; nothing to do"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.existing.outputs.published != 'true'
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          fetch-depth: 0 # GoReleaser reads the tag history
+          persist-credentials: false
+
+      # No build cache: a cache written by a branch build could otherwise end
+      # up in a distributed binary.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.existing.outputs.published != 'true'
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Test the tagged source
+        if: steps.existing.outputs.published != 'true'
+        run: go test ./...
+
+      # The GoReleaser version is pinned; Dependabot updates the action, this
+      # line is updated by hand (RELEASING.md).
+      - name: Build archives into a draft release
+        if: steps.existing.outputs.published != 'true'
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: v2.18.2
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Check the built version
+        if: steps.existing.outputs.published != 'true'
+        run: |
+          set -euo pipefail
+          ls -la dist/*.tar.gz dist/*.zip dist/checksums.txt
+          test "$(ls dist/*.tar.gz dist/*.zip | wc -l)" -eq 6
+          out="$(dist/port-keeper_linux_amd64_v1/port-keeper --version)"
+          echo "$out"
+          case "$out" in "port-keeper $VERSION "*) ;; *) echo "::error::binary reports '$out', tag is $VERSION"; exit 1 ;; esac
+
+      # `gh attestation verify <file> -R <repo>` proves a download came from this workflow.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        if: steps.existing.outputs.published != 'true'
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+
+      - name: Publish the release
+        if: steps.existing.outputs.published != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$TAG" --draft=false --repo "$GITHUB_REPOSITORY"
