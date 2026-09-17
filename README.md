@@ -58,6 +58,36 @@ never opens a network listener.
 
 See [docs/DESIGN.md](docs/DESIGN.md) for the full design (Japanese).
 
+## Small on purpose
+
+Before writing port-keeper we surveyed what already existed. The tools fall
+into a few kinds: local proxies that hide ports behind hostnames and have to
+stay running; agent-coordination platforms where ports are one feature among
+sessions, locks and messaging; wrappers that want to launch your dev server
+for you; free-port finders that keep no record of who owns what; and port
+registries for agents that know nothing about parallel working copies or
+`.env` files. Several are good at what they do. None of them was a ledger and
+nothing but a ledger.
+
+port-keeper is the simplest thing that solves the problem above:
+
+- **One job.** It decides which port belongs to which service of which working
+  copy, and answers when asked. Starting servers stays with your task runner.
+  Pretty hostnames stay with a proxy, if you want one. port-keeper can feed
+  both and replaces neither.
+- **Few parts.** One static binary, one SQLite file, one small manifest per
+  project. No daemon, no proxy, no DNS, no certificates, no account.
+- **A small surface for agents.** Eight MCP tools, six of them on by default.
+  An agent takes in the whole interface at a glance, and it costs almost no
+  context.
+- **Fits what you already run.** It writes plain environment variables into
+  `.env`, your shell, direnv or mise. Your dev command does not change.
+- **Easy to leave.** Remove the MCP entry and the hook, then delete the binary
+  and the ledger file. The `.env.local` it wrote is an ordinary file and keeps
+  working.
+
+What it leaves out is listed, with the reasons, under [Non-goals](#non-goals).
+
 ## Install
 
 port-keeper is one static binary with no runtime dependencies. Put it on your
