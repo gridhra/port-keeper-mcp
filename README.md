@@ -3,6 +3,49 @@
 **English** | [日本語](README.ja.md) | [简体中文](README.zh-CN.md)
 
 A local ledger for development ports, with an MCP server on top, written in Go.
+It gives every parallel coding agent its own set of ports, so each one can run
+the whole stack at the same time as the others.
+
+## The problem
+
+Coding agents pay off when you run them in parallel: five agents, five
+branches, five working copies. `git worktree` gives each agent its own files.
+It does not give each agent its own ports.
+
+For a web service, that is where it stops. Every working copy carries the same
+`.env`, so every copy's dev server, API and database ask for the same numbers.
+The first agent to start gets them. The others hit `address already in use`,
+or, worse, quietly run their tests against another agent's server and
+database.
+
+An agent that cannot bring up its own stack cannot check its own work. It can
+write code, run static analysis, and unit-test the pure functions. It cannot
+run an end-to-end test or any test that goes through a database: those need
+the application running, which takes one environment per agent, each holding
+as many ports as the stack has services. Without that, every agent queues for
+the single environment that works. A small CLI tool never notices. A large web
+service does: the work is parallel until it has to be verified, then it is
+serial, and the reason for running agents in parallel is gone.
+
+Agents run at the same time and do not talk to each other, so a naming
+convention or a wiki table of port ranges will not hold. Handing out ports has
+to work like a protocol: one place that every agent asks, and that answers
+correctly when several ask at once.
+
+## What port-keeper does
+
+port-keeper is that place.
+
+- **One environment per agent.** Each working copy gets a *slot*, and each
+  slot gets its own block of ports. No two leases ever share a port, across
+  every project on the machine, even when several agents ask at the same
+  moment.
+- **Agents ask instead of guessing.** Over MCP an agent gets the URL of a
+  service by name, and a hook puts the slot's ports into the agent's shell at
+  session start. A fresh worktree is refused the main copy's ports until it
+  has a slot of its own.
+- **Nothing to keep running.** No daemon, no proxy, no network listener. Every
+  command opens the ledger, does its work and exits.
 
 A project declares its services in a small manifest (names and env-var names,
 never numbers). port-keeper hands each *slot* (a parallel copy of the project:
@@ -83,7 +126,7 @@ claude mcp add --scope user port-keeper -- port-keeper mcp
 Then add the hook and the two-line instruction from
 [Working with coding agents](#working-with-coding-agents).
 
-## Why
+## Why the usual workarounds fail
 
 - **Offset formulas break.** "Base port + (slot − 1) × 1000" works until two
   services sit exactly 4000 apart; then slot 5 collides with slot 1 and the
