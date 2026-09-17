@@ -8,25 +8,5 @@
   "repository": {
     "url": "https://github.com/gridhra/port-keeper-mcp",
     "source": "github"
-  },
-  "packages": [
-    {
-      "registryType": "npm",
-      "registryBaseUrl": "https://registry.npmjs.org",
-      "identifier": "port-keeper-mcp",
-      "version": "0.0.0",
-      "runtimeHint": "npx",
-      "transport": {
-        "type": "stdio"
-      },
-      "packageArguments": [
-        {
-          "type": "positional",
-          "value": "mcp",
-          "description": "Run the stdio MCP server. The project and slot are resolved from the client's working directory.",
-          "isRequired": true
-        }
-      ]
-    }
-  ]
+  }
 }

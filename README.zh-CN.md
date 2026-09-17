@@ -8,11 +8,39 @@
 
 完整设计见 [docs/DESIGN.md](docs/DESIGN.md)（日语）。
 
+## 安装
+
+port-keeper 是一个没有运行时依赖的静态二进制文件。请把它放在 `PATH` 里：你的 shell、agent 的 hook 和 MCP 客户端调用的都是同一个 `port-keeper` 命令，所以安装一次三者都能用，机器上也始终只有一个版本。
+
+```sh
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/gridhra/port-keeper-mcp/main/scripts/install.sh | sh
+# Windows（PowerShell）。已在 CI 中构建并交叉编译，但尚未在真实的 Windows 机器上验证
+irm https://raw.githubusercontent.com/gridhra/port-keeper-mcp/main/scripts/install.ps1 | iex
+```
+
+脚本会从最新的 [GitHub Release](https://github.com/gridhra/port-keeper-mcp/releases) 中选出与你的操作系统和 CPU 对应的压缩包；只有当它的 SHA-256 与该版本的 `checksums.txt` 一致时才会安装，并把 `port-keeper` 放到 `~/.local/bin`。它不会要求 `sudo`。用 `PORT_KEEPER_INSTALL_DIR` 指定安装目录，用 `PORT_KEEPER_VERSION` 固定版本。再运行一次就是更新：它只替换这一个二进制文件，不会碰你的台账和配置。
+
+如果想手动完成同样的事，并确认压缩包确实是由本仓库的发布工作流、从打了标签的源码构建出来的：
+
+```sh
+gh release download --repo gridhra/port-keeper-mcp --pattern '*darwin_arm64.tar.gz' --pattern checksums.txt
+shasum -a 256 -c --ignore-missing checksums.txt
+gh attestation verify port-keeper_*_darwin_arm64.tar.gz --repo gridhra/port-keeper-mcp
+tar -xzf port-keeper_*_darwin_arm64.tar.gz port-keeper && mv port-keeper ~/.local/bin/
+```
+
+如果有 Go 工具链（1.25 或更新）：
+
+```sh
+go install github.com/gridhra/port-keeper-mcp/cmd/port-keeper@latest
+```
+
+我们有意不提供容器镜像，也不提供 `npx` 启动器；原因见[非目标](#不提供容器镜像)。
+
 ## 快速开始
 
 ```sh
-go install github.com/gridhra/port-keeper-mcp/cmd/port-keeper@latest   # 首个正式版本发布之前用这种方式
-
 cd your-project
 port-keeper init          # 写出 port-keeper.toml（只含名字），并把 .env.local 加入 gitignore
 $EDITOR port-keeper.toml  # 项目需要的每个端口写一条 [[service]]
@@ -35,8 +63,6 @@ claude mcp add --scope user port-keeper -- port-keeper mcp
 ```
 
 然后按 [与编码 agent 协作 (Working with coding agents)](#与编码-agent-协作-working-with-coding-agents) 里的说明加上 hook 和那两行指示。
-
-计划中的安装渠道（见 `docs/ROADMAP.md`）：通过 GoReleaser 提供预编译二进制、一个 Homebrew tap，以及一个 npm 包装，使 `npx port-keeper-mcp` 能在任何 MCP 客户端的配置中直接使用。`server.json` 是为该包装准备的 MCP 注册表清单草案，尚未发布。
 
 ## 为什么需要它
 
@@ -158,6 +184,14 @@ port-keeper 只负责预留一个号码并告诉你它是什么。谁在这个�
 
 `pin` 的存在只为迁移既有项目，别无他用。它要求填 `--reason`，每个项目限用一个槽位，并且会在台账中跨所有项目做仲裁；在你 `unpin` 之前，`doctor` 会一直念你。新项目永远不该 pin。
 
+### 不提供容器镜像
+
+port-keeper 必须直接看到属于你这台机器的四样东西：宿主机的网络栈（它通过实际 bind 来检查端口是否被占用）、宿主机的进程表（用 `lsof` 查出是谁在监听）、你的 shell 或 agent 当前所在的工作目录（它据此找到项目和 slot），以及你主目录下的台账。而容器存在的意义，恰恰就是隔离这四样东西。在容器里，port-keeper 探测到的是一个空的网络命名空间，会把所有端口都报告为空闲；它找不到你的项目；容器一退出，它就忘掉了所有租约。在 macOS 和 Windows 上，容器运行时本身跑在一个 Linux 虚拟机里，所以即使使用宿主机网络模式，也够不着你的开发服务器占用的端口。
+
+在 Linux 上，挂载和各种参数可以勉强弥补其中一部分，但每加一项就是把宿主机的又一块交给容器，到最后隔离荡然无存。所以我们不提供镜像，port-keeper 也不会以 OCI 包的形式出现在任何地方。它只是一个静态文件，按[安装](#安装)一节的一条命令就能放进 `PATH`。
+
+不提供 `npx` 启动器，原因与此相近。按需下载并启动服务器的启动器，能给你的 MCP 客户端一个服务器，却不能给你的 hook 和 shell 一个 `port-keeper` 命令，还会造成两个不同版本的二进制文件共用同一个台账。
+
 ### 如果你仍然想要其中某一项
 
 请从上面的理由出发来提 issue，并说明其中哪一部分在你的场景里不成立。“这样会更方便”已经被考虑进去了；能改变答案的是我们没想到的失效模式，或者是非目标反而挡住了真正目标（不必去想端口号）的情形。
@@ -278,6 +312,8 @@ enable_list_all = false     # 设为 true 才会注册 list_all_projects
 go test ./...                    # 单元测试、属性测试，以及进程内的 MCP 测试
 go vet ./... && gofmt -l .
 ```
+
+发布通过推送 `v*` 标签完成，步骤见 [RELEASING.md](RELEASING.md)（日语）。`sh scripts/install_test.sh` 用于测试安装脚本。
 
 本项目用 OpenSpec（`openspec/`）管理变更提案；运行 `openspec list` 可以查看它们。
 

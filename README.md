@@ -15,11 +15,50 @@ never opens a network listener.
 
 See [docs/DESIGN.md](docs/DESIGN.md) for the full design (Japanese).
 
+## Install
+
+port-keeper is one static binary with no runtime dependencies. Put it on your
+`PATH`: your shell, the agent hooks and your MCP client all call the same
+`port-keeper` command, so one install serves all three and there is only ever
+one version on the machine.
+
+```sh
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/gridhra/port-keeper-mcp/main/scripts/install.sh | sh
+# Windows (PowerShell). Built and cross-compiled in CI; not yet verified on a real Windows machine
+irm https://raw.githubusercontent.com/gridhra/port-keeper-mcp/main/scripts/install.ps1 | iex
+```
+
+The script picks the archive for your OS and CPU from the latest
+[GitHub Release](https://github.com/gridhra/port-keeper-mcp/releases), refuses
+to install anything unless its SHA-256 matches the release's `checksums.txt`,
+and places `port-keeper` in `~/.local/bin`. It never asks for `sudo`. Set
+`PORT_KEEPER_INSTALL_DIR` to install elsewhere and `PORT_KEEPER_VERSION` to pin
+a version. Run it again to update; it replaces the one binary and leaves your
+ledger and config alone.
+
+To do the same by hand, and to check that the archive was built by this
+repository's release workflow from the tagged source:
+
+```sh
+gh release download --repo gridhra/port-keeper-mcp --pattern '*darwin_arm64.tar.gz' --pattern checksums.txt
+shasum -a 256 -c --ignore-missing checksums.txt
+gh attestation verify port-keeper_*_darwin_arm64.tar.gz --repo gridhra/port-keeper-mcp
+tar -xzf port-keeper_*_darwin_arm64.tar.gz port-keeper && mv port-keeper ~/.local/bin/
+```
+
+With a Go toolchain (1.25 or newer):
+
+```sh
+go install github.com/gridhra/port-keeper-mcp/cmd/port-keeper@latest
+```
+
+There is deliberately no container image and no `npx` launcher; see
+[Non-goals](#no-container-image).
+
 ## Quickstart
 
 ```sh
-go install github.com/gridhra/port-keeper-mcp/cmd/port-keeper@latest   # until the first release
-
 cd your-project
 port-keeper init          # writes port-keeper.toml (names only) and gitignores .env.local
 $EDITOR port-keeper.toml  # one [[service]] per port your project needs
@@ -43,11 +82,6 @@ claude mcp add --scope user port-keeper -- port-keeper mcp
 
 Then add the hook and the two-line instruction from
 [Working with coding agents](#working-with-coding-agents).
-
-Planned install channels (see `docs/ROADMAP.md`): prebuilt binaries via
-GoReleaser, a Homebrew tap, and an npm wrapper so that `npx port-keeper-mcp`
-works from any MCP client's config. `server.json` is the draft MCP-registry
-manifest for that wrapper; it is not published yet.
 
 ## Why
 
@@ -251,6 +285,30 @@ secret manager.
 project in the ledger; `doctor` nags you about it until you `unpin`. New
 projects should never pin.
 
+### No container image
+
+port-keeper has to see four things that belong to your machine: the host's
+network stack (it checks a port by trying to bind it), the host's process
+table (`lsof` tells it who is listening), the working directory your shell or
+agent is in (that is how it finds the project and the slot), and the ledger
+under your home directory. A container exists to isolate exactly those four.
+Inside one, port-keeper would probe an empty network namespace and report
+every port free, would not find your project, and would forget its leases when
+the container exits. On macOS and Windows the container runtime itself runs in
+a Linux VM, so not even host networking reaches the ports your dev servers
+hold.
+
+Mounts and flags can paper over part of this on Linux, and each one hands the
+container another piece of the host until nothing is left of the isolation. So
+there is no image, and port-keeper will not be listed anywhere as an OCI
+package. The binary is a single static file; [Install](#install) puts it on
+your `PATH` with one command.
+
+An `npx` launcher is out for a related reason. A launcher that fetches the
+server on demand gives your MCP client a server, but gives your hooks and your
+shell no `port-keeper` command, and it leaves two copies of different versions
+sharing one ledger.
+
 ### If you still want one of these
 
 Open an issue that starts from the reasoning above and says which part of it
@@ -393,6 +451,9 @@ the toolchain automatically when `GOTOOLCHAIN` is left at its default).
 go test ./...                    # unit, property and in-process MCP tests
 go vet ./... && gofmt -l .
 ```
+
+Releases are cut by pushing a `v*` tag; [RELEASING.md](RELEASING.md) has the
+procedure (Japanese). `sh scripts/install_test.sh` tests the install script.
 
 The project uses OpenSpec (`openspec/`) for change proposals; run
 `openspec list` to see them.

@@ -56,7 +56,7 @@
 ### 2.1 言語・配布
 
 - **Go**。マルチプラットフォームの単一バイナリをクロスビルドするため。SQLiteはcgo不要の`modernc.org/sqlite`
-- 配布はGoReleaser（macOS／Linux／Windows、arm64／amd64）＋Homebrew tap＋npmラッパー（`npx port-keeper-mcp`で起動できるようにし、MCPレジストリの`server.json`から参照）＋`go install`
+- 配布はGoReleaser（macOS／Linux／Windows、arm64／amd64）＋インストールスクリプト＋`go install`。当初はHomebrew tapとnpmラッパー（`npx port-keeper-mcp`）も挙げていたが、npmラッパーは作らないと決め、Homebrew tapは需要が出るまで保留にした（2026-09-18。理由は§9.2）
 - MCP SDKは`github.com/modelcontextprotocol/go-sdk`。stdioのみ。annotations（readOnlyHint等）の実機動作は未確認（§8）
 
 ### 2.2 台帳
@@ -257,7 +257,7 @@ docs/{DESIGN,ROADMAP}.md   README.md   SECURITY.md   server.json   npm/   .githu
 
 - **M0（台帳コア）**: スキーマ、プール、ブロック割当、bind確認、`init/slot/env/url/status/gc/pin/unpin/doctor`。30サービスのプロジェクトでスロット5以上が立ち、2プロジェクトの固定衝突が拒否される
 - **M1（MCP）**: `mcp`サブコマンド、§4のツール、annotations、Claude Codeフック雛形。「shopのslot5のadminのURL」が1ツール呼び出しで返る
-- **M2（配布）**: GoReleaser、Homebrew tap、npmラッパー、`server.json`でMCPレジストリ登録。新しい端末で5分で導入
+- **M2（配布）**: GoReleaser、インストールスクリプト、Glamaとawesome-mcp-serversへの掲載。新しい端末で5分で導入（当初の案にあったnpmラッパーは作らず、Homebrew tapとMCPレジストリ登録はM3へ移した。§9.2）
 - **M3（需要駆動）**: Windowsの実在確認、Streamable HTTP（§5.3の条件付き）、既存プロキシへの連携例
 
 ---
@@ -294,4 +294,20 @@ docs/{DESIGN,ROADMAP}.md   README.md   SECURITY.md   server.json   npm/   .githu
 - **セルフレビューで直したもの**（要修正4件）: dotenv描画への改行注入（値を必ず引用）、`render.host`の未検証（ループバック名に限定）、他スロットのブロック内番号の固定（`--force`なしは拒否。空きオフセット選択でも全リース・プール・deny・台帳外LISTENと突合）、プール縮小後に旧ブロックからプール外番号を貸す（プール再確認）。推奨のうち採用: MCP `status`を真に読み取り専用に、名前なし`slot_new`の冪等化、固定済みサービスの削除拒否、`env`後の`hijacked`再確認、`--`終端と余分な位置引数の拒否、symlinkディレクトリ経由の脱出拒否、複数OSプロセスの同時実行テスト
 - **独立レビュー（文脈を共有しない別エージェント、2026-09-17）で直したもの**: 要修正3件＝未紐づけ作業コピーでの既定スロット共有（`RequireBound`で拒否）、`PORT_KEEPER_SLOT`が紐づけより優先される（解決順を変更）、Windowsビルド不能（`SO_REUSEADDR`の無効化をビルドタグで分離。CIにクロスビルドを追加）。推奨＝MCPツールに`cwd`引数（セッションが別作業コピーへ移っても追従）、リポジトリ消失後のスロットを`gc --yes`で台帳から直接解放、`env`の警告から`reassign`の誘導を外す、`status`のプロセス名を64文字に制限し`listener`フィールドとして返す、`.env.local`の一時ファイル＋renameによる原子的書き込み、`init`の`.gitignore`判定を`git check-ignore`に、`status`の`lsof`を1回に集約、`init --here`、`stale_days`の負値拒否、CIに`govulncheck`
 - **未実装**: §5.5の「MCP設定ファイルに番号やトークンが無いか」の検査
-- **未実施**: Homebrew tap、npmラッパー、MCPレジストリ登録、README.ja.md、Windows検証
+- **未実施**（この9.1を書いた2026-09-17の時点）: Homebrew tap、npmラッパー、MCPレジストリ登録、README.ja.md、Windows検証。その後の結論は、次の9.2（初回配布の準備で確定した差分）にある
+
+### 9.2 2026-09-18: 初回配布（v0.1.0）の準備で確定した差分
+
+この節は、OpenSpecのchange`distribution-v0-1`（第三者が使える状態にするための初回配布）の実装中に決まったことをまとめる。経緯の全文は`openspec/changes/distribution-v0-1/design.md`（アーカイブ後は`openspec/changes/archive/`の下）にある。
+
+- **台帳のスキーマの版**: 台帳（SQLiteファイル）のスキーマの版を、SQLiteの`PRAGMA user_version`（ファイルのヘッダにある整数）に記録する。現在の版は1（`ledger.SchemaVersion`）。開く順序は「版を読む → 自分の版より新しければ、何も書かずに`NewerSchemaError`で終了 → 0（未記録）ならスキーマを流して1を書く（同じトランザクション）→ 同じなら何もしない」。それまでは、開くたびに無条件で`CREATE TABLE IF NOT EXISTS`を流していた
+  - 理由: 同じ端末に版の違うバイナリが同居しうる（インストールスクリプトで入れたものと`go install`で入れたもの、更新前から動き続けているMCPサーバーのプロセスと更新後のコマンド）。版の記録が無いと、古いバイナリが新しいスキーマの台帳を気づかずに読み書きする。第三者の端末に台帳ができたあとでは入れにくいので、初回公開の前に入れた
+  - MCPサーバーは長く動き続けるので、開いたときだけでなく、ツール呼び出しのたびに版を読み直す（`Ledger.CheckSchema`）。起動の時点ですでに台帳が新しい場合は、サーバーは起動せず、標準エラーに同じ案内を出して終了する
+  - スキーマを変えるときは、`SchemaVersion`を上げ、`migrate`に移行の段を足す
+- **`render_env`の失敗がプロトコルエラーになっていた不具合を修正**: Go SDKは、ツールがエラー（`IsError`）を返す場合でも、構造化出力を出力スキーマで検証する。`render_env`の失敗時の出力は`env`（map）がnilで、JSONでは`null`になり、「objectではない」として`tools/call`全体が失敗していた。エージェントは、ツールのエラーなら文面を読んで立て直せるが、プロトコルエラーでは立て直せない。失敗時も空のmapを返すようにし、「プロジェクトの外で全ツールを呼び、どれもツールのエラーとして返ること」のテスト（`TestFailuresAreToolErrors`）を足した
+  - 見つけた経緯: スキーマの版のテストで、全ツールをわざと失敗させたときに`render_env`だけがプロトコルエラーになった
+  - 教訓: 出力の型にmapを足すときは、失敗時の出力でもnilにしない
+- **npmラッパーは作らない**（9.1の「未実施」にあった項目の結論）。port-keeperはMCPサーバーだけで完結せず、Claude Codeのフックと人の操作がPATH上の`port-keeper`コマンドを必要とするので、`npx`の都度起動ではなく常設インストール（インストールスクリプト）を導入経路にする。同じ作者のatx-mcpでは、npmの6パッケージの初回手動公開や公開設定など、メンテナの手作業が多かったことも理由である
+- **MCP公式レジストリへの登録は保留**。レジストリが受け付ける形式（npm／pypi／nuget／cargo／oci／mcpb）のうち、npmとoci（コンテナ）はこの節の理由で使えない。mcpb形式（GitHub Releaseに置くまとめファイル。旧称DXT）も採らない。調査（2026-09-18）で分かったこと: (1) `.mcpb`を導入できるクライアントはClaude Desktop（macOSとWindows）だけで、Claude Code、VS Code、Cursorには導入経路が無い。VS Codeは、mcpbしか持たないサーバーを一覧から落とす。(2) Claude Desktopには「開いているプロジェクトの作業ディレクトリ」が無く、起動されるサーバーの作業ディレクトリも文書化されていない。port-keeperはクライアントの作業ディレクトリからプロジェクトとスロットを解決するので、コンテナと同じ理由で成立しない。(3) コンパイル済みバイナリを同梱する種別（`server.type: "binary"`）は、macOSのClaude Desktopでは展開時に実行権限が落ちて起動しない不具合が未修理である（`modelcontextprotocol/mcpb`のissue #294）。(4) `.mcpb`の中のバイナリはPATHに入らないので、npmラッパーと同じく、版の違う2本のバイナリが1つの台帳を共有する。なお、当初の懸念だったCPU（amd64／arm64）の区別は、`server.json`の`packages`にOSとCPUごとの`.mcpb`を複数並べる方法で解決できる（Goの実例がレジストリに複数ある）ので、見送りの理由ではない。性質が合う形式は、レジストリに提案されている`go`形式（`go install`できるGoモジュールを登録する。バイナリはPATH上に常設される）で、2026-09-18時点では未マージである（`modelcontextprotocol/registry`のissue #1307とPR #1321）。再検討の条件は、そのPRのマージである。`server.json`はパッケージの記述を持たない下書きのまま置く
+- **Homebrew tapは保留**。tap用の別リポジトリと、そこへ書き込む長期の認証トークンが要る。リリースの経路に保存したトークンを置かない、という今の構成を崩すので、要望が出てから検討する
+- **コンテナイメージは配らない**（READMEのNon-goalsに追加）。port-keeperは、ホストのネットワークでの`bind`確認、ホストの`lsof`、クライアントの作業ディレクトリ、ホーム配下の台帳を直接見る。コンテナはこの4つをすべて隔離するので、機能が成立しない。MCP公式レジストリのoci形式での登録も、同じ理由で採らない

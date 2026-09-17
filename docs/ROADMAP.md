@@ -22,14 +22,25 @@
 `port-keeper mcp`（stdio）と8ツール、annotations、`structuredContent`、Claude Codeの登録・フック雛形。
 完了条件: 「shopのslot5のadminのURL」が1ツール呼び出しで返る。`current_context`の出力に番号が無いことをスキーマで検証。
 
-### M2 — 配布 — 一部（CI・GoReleaser設定のみ）
+### M2 — 配布 — 実装済み・初回リリース待ち（2026-09-18）
 
-GoReleaser（macOS／Linux／Windows、arm64／amd64）、Homebrew tap、npmラッパー（`npx port-keeper-mcp`）、`server.json`でMCPレジストリ登録（`version`の`0.0.0`はリリースタグの値に差し替える。npmラッパーが出るまで登録しない）、README.ja.md。
+`v*`タグのpushで動くリリース（GitHub Actionsの`release.yml`とGoReleaser。macOS／Linux／Windows、arm64／amd64の6アーカイブ、`checksums.txt`、ビルド来歴の証明、公開後に変更できないRelease）、インストールスクリプト（`scripts/install.sh`／`install.ps1`。チェックサムの照合が必須で、`sudo`を使わない）、台帳のスキーマの版、README 3言語の導入手順、メンテナ向けの`RELEASING.md`、Glama（MCPサーバーの登録・評価サイト）への提出前検証（`scripts/glama.sh`）。
+残り: `v0.1.0`のタグpush、公開物の確認、Glamaへの登録とawesome-mcp-serversへの掲載申請。手順は`RELEASING.md`。
 完了条件: 新しい端末で5分で導入でき、`doctor`が緑。
+
+当初の案から変えた点（理由は`docs/DESIGN.md`の§9.2）:
+
+- **npmラッパー（`npx port-keeper-mcp`）は作らない**。フックと人の操作がPATH上の`port-keeper`コマンドを必要とするので、都度起動ではなく常設インストールを導入経路にした。同じ作者のatx-mcpで、npmの公開にメンテナの手作業が多かったことも理由である
+- **コンテナイメージは配らない**（READMEのNon-goals）。したがってMCP公式レジストリにoci形式では登録しない
 
 ### M3 — 需要駆動
 
-Windowsの実在確認とパス規約、Streamable HTTP（DESIGN §5.3の条件を全て満たす場合のみ）、既存プロキシ（portless、localias）へ`env --format json`を渡す連携例。
+- Windowsの実在確認とパス規約、インストールスクリプトのWindows実機での確認
+- **MCP公式レジストリへの登録**。レジストリが受け付ける形式のうち、npmとoci（コンテナ）はM2の節に書いた理由で採らない。mcpb形式（GitHub Releaseに置くまとめファイル）も採らない。調査（2026-09-18）で分かったこと: (1) `.mcpb`を導入できるクライアントはClaude Desktop（macOSとWindows）だけで、Claude Code、VS Code、Cursorには導入経路が無い。VS Codeは、mcpbしか持たないサーバーを一覧から落とす。(2) Claude Desktopには「開いているプロジェクトの作業ディレクトリ」が無く、起動されるサーバーの作業ディレクトリも文書化されていない。port-keeperはクライアントの作業ディレクトリからプロジェクトとスロットを解決するので、コンテナと同じ理由で成立しない。(3) コンパイル済みバイナリを同梱する種別（`server.type: "binary"`）は、macOSのClaude Desktopでは展開時に実行権限が落ちて起動しない不具合が未修理である（`modelcontextprotocol/mcpb`のissue #294）。(4) `.mcpb`の中のバイナリはPATHに入らないので、npmラッパーと同じく、版の違う2本のバイナリが1つの台帳を共有する。なお、当初の懸念だったCPU（amd64／arm64）の区別は、`server.json`の`packages`にOSとCPUごとの`.mcpb`を複数並べる方法で解決できる（Goの実例がレジストリに複数ある）ので、見送りの理由ではない。性質が合う形式は、レジストリに提案されている`go`形式（`go install`できるGoモジュールを登録する。バイナリはPATH上に常設される）で、2026-09-18時点では未マージである（`modelcontextprotocol/registry`のissue #1307とPR #1321）。**再検討の条件: PR #1321がマージされたとき。** `server.json`は、パッケージの記述を持たない下書きのまま置いてある
+- Homebrew tap（tap用の別リポジトリと、そこへ書き込む長期トークンの管理が要るので、要望が出てから）
+- Streamable HTTP（DESIGN §5.3の条件を全て満たす場合のみ）
+- 既存プロキシ（portless、localias）へ`env --format json`を渡す連携例
+- `doctor`の「MCP設定ファイルに番号やトークンが無いか」の検査（DESIGN §5.5。未実装）
 
 ## Agent UXの規律（MCPツール面の洗練）
 

@@ -9,6 +9,7 @@ go test -race ./...            # 全テスト。commit前に必ず通す
 go vet ./... && gofmt -l .     # lint。gofmtの出力は空でなければならない
 GOOS=windows go build ./...    # Windowsでもコンパイルが通る状態を保つ（CIが検査する）
 go run ./cmd/port-keeper       # ソースから実行
+sh scripts/install_test.sh     # インストールスクリプトのテスト（ネットワーク不要）
 openspec list                  # 進行中のOpenSpec change
 ```
 
@@ -34,4 +35,10 @@ Go 1.25以上（ツールチェーンは自動取得される）。テストは`
 
 ## 現状
 
-`docs/ROADMAP.md`を参照。M0（台帳コア）とM1（MCP）は完了。M2（配布: GoReleaserのリリース、Homebrew tap、npmラッパー、MCPレジストリ）は雛形だけで未実行。Windowsはコンパイルのみで未検証。
+`docs/ROADMAP.md`を参照。M0（台帳コア）とM1（MCP）は完了。M2（配布）は実装済みで、初回リリース`v0.1.0`のタグpushと掲載（Glama、awesome-mcp-servers）が残っている。リリースの手順、失敗したときのやり直し、Glamaの手順は`RELEASING.md`にある。npmラッパーとコンテナイメージは作らないと決めている（理由は`docs/DESIGN.md`の§9.2）。MCP公式レジストリへの登録は未定（ROADMAPのM3）。Windowsはコンパイルのみで未検証。
+
+配布まわりで破りやすい規則:
+
+- **アーカイブ名（`port-keeper_<版>_<os>_<arch>`）と`checksums.txt`の名前を変えるときは、`.goreleaser.yaml`、`scripts/install.sh`、`scripts/install.ps1`、`scripts/glama.sh`、READMEの手動インストール手順を同時に直す。**
+- **台帳のスキーマを変えるときは`ledger.SchemaVersion`を上げ、`migrate`に移行の段を足す。** 古いバイナリが新しい台帳を拒否できるのは、この版のおかげである。
+- **MCPツールの出力の型にmapを足すときは、失敗時の出力でもnilにしない**（SDKはエラー結果でも出力スキーマを検証し、nilのmapは`null`になってプロトコルエラーになる。`render_env`で実際に起きた）。

@@ -8,11 +8,39 @@
 
 設計の全文は[docs/DESIGN.md](docs/DESIGN.md)（日本語）にあります。
 
+## インストール
+
+port-keeperは、実行時の依存を持たない単一の静的バイナリです。`PATH`の通った場所に置いてください。シェルも、エージェントのフックも、MCPクライアントも、同じ`port-keeper`コマンドを呼びます。1回のインストールで3つすべてが動き、端末の上にあるバージョンは常に1つです。
+
+```sh
+# macOS／Linux
+curl -fsSL https://raw.githubusercontent.com/gridhra/port-keeper-mcp/main/scripts/install.sh | sh
+# Windows（PowerShell）。CIでビルドとクロスコンパイルはしていますが、Windowsの実機ではまだ検証していません
+irm https://raw.githubusercontent.com/gridhra/port-keeper-mcp/main/scripts/install.ps1 | iex
+```
+
+スクリプトは、最新の[GitHub Release](https://github.com/gridhra/port-keeper-mcp/releases)からOSとCPUに合うアーカイブを選び、そのSHA-256がリリースの`checksums.txt`と一致しない限り何もインストールせず、`port-keeper`を`~/.local/bin`に置きます。`sudo`は求めません。置き場所は`PORT_KEEPER_INSTALL_DIR`で、バージョンは`PORT_KEEPER_VERSION`で指定できます。更新はもう一度実行するだけです。置き換えるのはバイナリ1つだけで、台帳と設定には触れません。
+
+同じことを手作業で行い、さらにアーカイブが「このリポジトリのリリース用ワークフローが、タグの付いたソースからビルドしたもの」であることを確かめるには、次のようにします。
+
+```sh
+gh release download --repo gridhra/port-keeper-mcp --pattern '*darwin_arm64.tar.gz' --pattern checksums.txt
+shasum -a 256 -c --ignore-missing checksums.txt
+gh attestation verify port-keeper_*_darwin_arm64.tar.gz --repo gridhra/port-keeper-mcp
+tar -xzf port-keeper_*_darwin_arm64.tar.gz port-keeper && mv port-keeper ~/.local/bin/
+```
+
+Goのツールチェーン（1.25以上）があるなら、次でも入ります。
+
+```sh
+go install github.com/gridhra/port-keeper-mcp/cmd/port-keeper@latest
+```
+
+コンテナイメージと`npx`ランチャーは、意図して用意していません。[非目標](#コンテナイメージは配らない)を読んでください。
+
 ## Quickstart
 
 ```sh
-go install github.com/gridhra/port-keeper-mcp/cmd/port-keeper@latest   # 初回リリースまでの導入方法
-
 cd your-project
 port-keeper init          # port-keeper.toml（名前だけ）を書き、.env.localを.gitignoreに追加
 $EDITOR port-keeper.toml  # ポートが必要なサービスごとに[[service]]を1つ
@@ -35,8 +63,6 @@ claude mcp add --scope user port-keeper -- port-keeper mcp
 ```
 
 続けて、[コーディングエージェントとの連携](#コーディングエージェントとの連携)にあるフック設定と2行の指示を追加してください。
-
-配布経路の予定（`docs/ROADMAP.md`参照）: GoReleaserによるビルド済みバイナリ、Homebrew tap、どのMCPクライアントの設定からも`npx port-keeper-mcp`で起動できるnpmラッパー。`server.json`はそのラッパー向けのMCPレジストリ用マニフェストの下書きで、まだ公開していません。
 
 ## なぜ作ったか
 
@@ -155,6 +181,14 @@ port-keeperは番号を予約し、それが何番かを教えます。その番
 ### プールの外への割当はしない
 
 `pin`は既存プロジェクトの移行のためだけにあります。`--reason`が必須で、1プロジェクトにつき1スロットに限られ、台帳内の全プロジェクトを横断して調停されます。`unpin`するまで`doctor`が催促し続けます。新しいプロジェクトは固定すべきではありません。
+
+### コンテナイメージは配らない
+
+port-keeperは、あなたの端末に属する4つのものを直接見る必要があります。ホストのネットワーク（ポートが使われているかを、実際にbindして確かめます）、ホストのプロセス一覧（誰がLISTENしているかを`lsof`で調べます）、シェルやエージェントがいまいる作業ディレクトリ（そこからプロジェクトとスロットを見つけます）、そしてホームディレクトリの下の台帳です。コンテナは、まさにこの4つを隔離するためのものです。コンテナの中のport-keeperは、空のネットワーク名前空間を調べてすべてのポートを「空き」と報告し、プロジェクトを見つけられず、コンテナの終了と同時にリースを忘れます。macOSとWindowsでは、コンテナランタイム自体がLinuxの仮想マシンの中で動くので、ホストのネットワークを共有する指定をしても、開発サーバーが握っているポートには届きません。
+
+Linuxなら、マウントやフラグで一部は取り繕えます。しかしその1つ1つがホストの一部をコンテナに渡すことになり、最後には隔離が何も残りません。だからイメージは配りませんし、port-keeperがOCIパッケージとしてどこかに掲載されることもありません。バイナリは単一の静的ファイルで、[インストール](#インストール)のコマンド1つで`PATH`に入ります。
+
+`npx`ランチャーを用意しないのも、近い理由です。必要なときにサーバーを取得して起動するランチャーは、MCPクライアントにはサーバーを渡せますが、フックとシェルには`port-keeper`コマンドを渡せません。そのうえ、バージョンの違う2つのバイナリが1つの台帳を共有する状態を作ります。
 
 ### それでも欲しいなら
 
@@ -276,6 +310,8 @@ Go 1.25以上（SQLiteドライバとMCP SDKが要求します。`GOTOOLCHAIN`�
 go test ./...                    # 単体・プロパティ・インプロセスMCPのテスト
 go vet ./... && gofmt -l .
 ```
+
+リリースは`v*`タグのpushで行います。手順は[RELEASING.md](RELEASING.md)にあります。`sh scripts/install_test.sh`はインストールスクリプトのテストです。
 
 変更提案にはOpenSpec（`openspec/`）を使っています。`openspec list`で一覧できます。
 
