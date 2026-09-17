@@ -1,0 +1,84 @@
+name: 機能要望（日本語）
+description: 新しいコマンド・ツール・出力形式・挙動の提案
+title: "[feat] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        書き始める前に: port-keeperには、よく要望されるが**意図的に作らない**ものがあります。READMEの**Non-goals**節を先に読んでください。リバースプロキシ（名前付きホスト）、プロセスの起動・停止・kill、常駐デーモン、台帳の共有・同期、台帳への秘密情報の保存、プール外への自動割当は、いずれも設計として外しており、理由もそこに書いてあります。その理由に対する反論は歓迎します。機能を言い換えただけの要望は、Non-goalsへのリンクを添えてクローズします。
+
+        もう一つ設計上の方針として、MCPのツール数は増やさず、ポート番号を含む出力は3つのツール（`resolve_url`、`resolve_port`、`render_env`）に限っています。新しい能力は通常、新しい**描画形式**、新しい**マニフェストの項目**、新しい**`doctor`の検査**として入り、新しいツールとしては入りません。
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: やりたいこと
+      description: |
+        実際に何をしたいのかを、エージェントへの依頼文（「スロット3の管理画面を開いて」）や打ちたいコマンドの形で書き、いま何に阻まれているかを添えてください。具体的であるほど助かります。
+    validations:
+      required: true
+
+  - type: dropdown
+    id: shape
+    attributes:
+      label: どの形の変更か
+      options:
+        - 新しい描画形式（`port-keeper env --format …`）
+        - 新しいマニフェストの項目・テンプレート変数
+        - 新しい`doctor`の検査
+        - 新しいCLIコマンドまたはフラグ
+        - 新しいMCPツール（ツール数を増やさない方針に対する理由を添えてください）
+        - 割当・プールの挙動の変更
+        - その他・分からない
+    validations:
+      required: true
+
+  - type: dropdown
+    id: nongoal
+    attributes:
+      label: READMEのNon-goalsに当たるか
+      description: 「はい」の場合は、下の「READMEの理由が当てはまらない根拠」欄に書いてください。空欄のままなら、理由への反論は無いものとして扱います。
+      options:
+        - "いいえ"
+        - "はい — リバースプロキシ・名前付きホスト"
+        - "はい — プロセス管理（起動・停止・kill）"
+        - "はい — デーモン・常駐プロセス"
+        - "はい — 台帳の共有・同期"
+        - "はい — 台帳への秘密情報の保存"
+        - "はい — プール外への割当"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reasoning
+    attributes:
+      label: READMEの理由が当てはまらない根拠
+      description: |
+        上で「はい」を選んだ場合のみ。Non-goalsに書かれた理由の文を引用し、その理由があなたの状況では成り立たない根拠（見落とされている失敗の形や場面）を書いてください。「便利だから」は既に織り込み済みです。「はい」なのにここが空欄だと、Non-goalsへのリンクを添えてクローズされます。
+    validations:
+      required: false
+
+  - type: textarea
+    id: disclosure
+    attributes:
+      label: 開示への影響
+      description: |
+        この変更で、台帳が持つ情報や、ツールが返す情報が今より増えますか（番号、パス、他のプロジェクト、名前以外のもの）。増えるなら、何がどう増え、なぜ許容できるかを書いてください。READMEの「Security model」を参照。
+    validations:
+      required: false
+
+  - type: dropdown
+    id: pr
+    attributes:
+      label: 実装のPRを出せますか
+      description: |
+        どの答えでも構いません。一人で保守しているので、提案に手が付いているかどうかで優先順位が変わります。
+      options:
+        - "はい、自分で実装したい"
+        - "はい、設計とテストの助言があれば"
+        - "テストやfixtureなら手伝える"
+        - "いいえ、提案のみ"
+    validations:
+      required: true

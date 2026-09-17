@@ -1,0 +1,63 @@
+name: バグ報告（日本語）
+description: port-keeperの誤動作（衝突、誤った描画、保証の破れ）
+title: "[bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        報告ありがとうございます。
+
+        **台帳ファイルや`lsof`の出力全体は貼らないでください。** どちらも「あなたの端末で何が動いているか」の地図です。関係するリースだけを言葉で書いてください（プロジェクト／スロット／サービス、プールからの割当か固定かの別）。
+
+        見つけたのが*セキュリティ*の問題（台帳が他人から読める、ツールが別プロジェクトの情報を返す、あるはずのない待ち受けがある）なら、ここには書かず[SECURITY.md](https://github.com/gridhra/port-keeper-mcp/blob/main/SECURITY.md)の手順で非公開に報告してください。
+
+  - type: input
+    id: version
+    attributes:
+      label: port-keeperのバージョン
+      description: "`port-keeper --version`の出力"
+      placeholder: "port-keeper 0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: OSとアーキテクチャ
+      placeholder: "macOS 15 arm64 / Ubuntu 24.04 amd64 / Windows 11 amd64"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: guarantee
+    attributes:
+      label: どの保証が破れましたか
+      options:
+        - "2つのリースが同じポートを得た"
+        - "固定（pin）なしにプール外のポートが割り当てられた"
+        - "解放していないのにスロットのブロックが変わった"
+        - "描画が書いてはいけない場所に書いた（git追跡済みファイル、リポジトリ外）"
+        - "ツールが返してはいけない情報を返した（他プロジェクト、番号）"
+        - "`status`のactive／stale／hijacked判定が誤っている"
+        - "その他"
+    validations:
+      required: true
+
+  - type: textarea
+    id: manifest
+    attributes:
+      label: 再現する最小のマニフェスト
+      description: 再現できる最小の`port-keeper.toml`。名前だけで足り、番号は不要です。
+      render: toml
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 実行したコマンドと結果
+      description: 打ったコマンドの列、期待した結果、実際の結果。`port-keeper doctor`の出力があると助かります。
+    validations:
+      required: true

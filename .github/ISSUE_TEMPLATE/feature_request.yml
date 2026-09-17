@@ -1,0 +1,103 @@
+name: Feature request
+description: Propose a new command, tool, render format, or behaviour.
+title: "[feat] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before writing: port-keeper deliberately **does not** do several things
+        that are often requested. Please read the **Non-goals** section of the
+        README first — a reverse proxy / named hosts, process start/stop/kill,
+        a daemon, a shared or synced ledger, secrets in the ledger, and
+        allocation outside the pool are all out by design, and the README
+        explains why. A request that argues with that reasoning is welcome; a
+        request that restates the feature will be closed with a link.
+
+        Also by design: the MCP tool surface stays small, and only three
+        tools carry port numbers (`resolve_url`, `resolve_port`, `render_env`). New capability normally arrives as a new
+        **render format**, a new **manifest field**, or a new **`doctor`
+        check**, not as a new tool.
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: |
+        What are you actually trying to do? Describe it as the request you
+        would give the agent ("open the admin of slot 3") or the command you
+        would type, plus what currently blocks you. Concrete beats abstract.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: shape
+    attributes:
+      label: What shape does this take?
+      options:
+        - New render format (`port-keeper env --format …`)
+        - New manifest field or template variable
+        - New `doctor` check
+        - New CLI command or flag
+        - New MCP tool (please justify against the small-surface rule)
+        - Change to allocation / pool behaviour
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: nongoal
+    attributes:
+      label: Does this touch a documented non-goal?
+      description: If yes, fill in the "Why the README's reasoning does not hold" field below. Left empty, the request is read as having no argument against the reasoning.
+      options:
+        - "No"
+        - "Yes — reverse proxy / named hosts"
+        - "Yes — process management (start / stop / kill)"
+        - "Yes — daemon / resident process"
+        - "Yes — shared or synced ledger"
+        - "Yes — secrets in the ledger"
+        - "Yes — allocation outside the pool"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reasoning
+    attributes:
+      label: Why the README's reasoning does not hold in your case
+      description: |
+        Only if you answered "Yes" above. Quote the sentence from Non-goals
+        that you disagree with and explain the failure mode or scenario it
+        misses. "It would be convenient" is already accounted for. If this is
+        left empty for a "Yes" request, expect the issue to be closed with a
+        link to Non-goals.
+    validations:
+      required: false
+
+  - type: textarea
+    id: disclosure
+    attributes:
+      label: Disclosure impact
+      description: |
+        Would this make the ledger hold more, or make a tool return more, than
+        they do today (numbers, paths, other projects, anything beyond names)?
+        If so, say what and why it is acceptable. See "Security model" in the
+        README.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: pr
+    attributes:
+      label: Would you be willing to open a PR?
+      description: |
+        No wrong answer — this is a solo-maintained project, so knowing whether
+        a proposal comes with hands attached affects scheduling.
+      options:
+        - "Yes, I would like to implement it"
+        - "Yes, with guidance on the design and tests"
+        - "I could help with tests, not the implementation"
+        - "No, just proposing"
+    validations:
+      required: true

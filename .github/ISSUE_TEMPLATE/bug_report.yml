@@ -1,0 +1,69 @@
+name: Bug report
+description: Something port-keeper did wrong — a collision, a wrong render, a broken guarantee.
+title: "[bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug.
+
+        **Do not paste your ledger file or a full `lsof` dump.** Either one is
+        a map of what runs on your machine. Describe the relevant leases in
+        words (project / slot / service, and whether each was pooled or
+        pinned).
+
+        Found a *security* problem instead — the ledger readable by others, a
+        tool disclosing another project, a listener where there should be
+        none? Do not file it here; see
+        [SECURITY.md](https://github.com/gridhra/port-keeper-mcp/blob/main/SECURITY.md).
+
+  - type: input
+    id: version
+    attributes:
+      label: port-keeper version
+      description: Output of `port-keeper --version`.
+      placeholder: "port-keeper 0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: OS and architecture
+      placeholder: "macOS 15 arm64 / Ubuntu 24.04 amd64 / Windows 11 amd64"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: guarantee
+    attributes:
+      label: Which guarantee broke?
+      options:
+        - "Two leases got the same port"
+        - "A port outside the pool was allocated without pin"
+        - "A slot changed its block without being released"
+        - "A render wrote somewhere it should not (tracked file, outside repo)"
+        - "A tool returned something it should not (other project, numbers)"
+        - "`status` misjudged active / stale / hijacked"
+        - "Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: manifest
+    attributes:
+      label: Minimal manifest
+      description: The smallest `port-keeper.toml` that reproduces it. Names only, no numbers needed.
+      render: toml
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Commands and observed result
+      description: The exact command sequence, what you expected, and what happened. Output of `port-keeper doctor` helps.
+    validations:
+      required: true
