@@ -245,6 +245,11 @@ type EnvOut struct {
 	Env     map[string]string `json:"env"`
 }
 
+// envFailed is the structured output of a failed render_env. The SDK validates
+// it against the output schema even for tool errors, and a nil map encodes as
+// null, which is not an object: that turned every failure into a protocol error.
+var envFailed = EnvOut{Env: map[string]string{}}
+
 func (s *Server) renderEnv(ctx context.Context, _ *mcp.CallToolRequest, in EnvIn) (*mcp.CallToolResult, EnvOut, error) {
 	format := in.Format
 	if format == "" {
@@ -252,17 +257,17 @@ func (s *Server) renderEnv(ctx context.Context, _ *mcp.CallToolRequest, in EnvIn
 	}
 	c, err := s.ctx(ctx, in.Cwd)
 	if err != nil {
-		return fail(err), EnvOut{}, nil
+		return fail(err), envFailed, nil
 	}
 	if err := c.RequireBound(); err != nil {
-		return fail(err), EnvOut{}, nil
+		return fail(err), envFailed, nil
 	}
 	if c.Slot == nil {
-		return fail(fmt.Errorf("slot %q does not exist yet; call slot_new first", c.SlotName)), EnvOut{}, nil
+		return fail(fmt.Errorf("slot %q does not exist yet; call slot_new first", c.SlotName)), envFailed, nil
 	}
 	textOut, r, err := s.app.EnvText(ctx, c, format)
 	if err != nil {
-		return fail(err), EnvOut{}, nil
+		return fail(err), envFailed, nil
 	}
 	vars, _ := render.Vars(c.Manifest, r)
 	out := EnvOut{Project: r.Project, Slot: r.Slot, Format: format, Text: textOut, Env: map[string]string{}}

@@ -186,3 +186,20 @@ func TestFlowAndDisclosure(t *testing.T) {
 		t.Fatalf("release: %+v", out)
 	}
 }
+
+// Every tool must report an ordinary failure as a tool error (IsError), never
+// as a protocol error: the client model can only recover from the former.
+func TestFailuresAreToolErrors(t *testing.T) {
+	cs, _ := session(t, true)
+	outside := t.TempDir()
+	for _, tool := range []string{"current_context", "resolve_url", "resolve_port", "render_env", "status", "slot_new", "slot_release"} {
+		res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: tool, Arguments: map[string]any{"cwd": outside, "service": "web", "name": "x"}})
+		if err != nil {
+			t.Errorf("%s: protocol error instead of a tool error: %v", tool, err)
+			continue
+		}
+		if !res.IsError {
+			t.Errorf("%s succeeded outside a project", tool)
+		}
+	}
+}
