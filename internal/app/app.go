@@ -294,6 +294,35 @@ func validSlotName(n string) bool {
 	return true
 }
 
+// SlotNameFromBranch turns a git branch name into a valid slot name: lower
+// case, every run of characters outside [a-z0-9] becomes one hyphen, no
+// leading or trailing hyphen, at most 63 bytes. "feature/Login_v2" becomes
+// "feature-login-v2".
+func SlotNameFromBranch(branch string) (string, error) {
+	var b strings.Builder
+	dash := true // suppress a leading hyphen
+	for _, r := range strings.ToLower(branch) {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' {
+			b.WriteRune(r)
+			dash = false
+			continue
+		}
+		if !dash {
+			b.WriteByte('-')
+			dash = true
+		}
+	}
+	name := b.String()
+	if len(name) > 63 {
+		name = name[:63]
+	}
+	name = strings.TrimRight(name, "-")
+	if !validSlotName(name) {
+		return "", fmt.Errorf("branch %q leaves no characters usable in a slot name", branch)
+	}
+	return name, nil
+}
+
 func nextSlotName(ctx context.Context, tx *ledger.Tx, projectID int64) (string, error) {
 	slots, err := tx.ListSlots(ctx, projectID)
 	if err != nil {
@@ -1051,4 +1080,73 @@ func (a *App) WriteDotenv(ctx context.Context, c *Context, body string) (path st
 	}
 	changed, err = render.WriteDotenv(path, m.Render.DotenvMarker, m.Project.Name, c.SlotName, body)
 	return path, changed, err
+}
+
+// EnvDrift reports, in words and without port numbers, why the rendered
+// dotenv file no longer matches the manifest and the ledger; it returns "" when
+// the file is current. It reads only: the block is rendered in memory from the
+// leases and compared with what is on disk, so a service added to the manifest,
+// a `reassign`, a hand edit and a deleted file are all caught without keeping a
+// manifest hash in the ledger.
+func (a *App) EnvDrift(ctx context.Context, c *Context) (reason string, err error) {
+	m := c.Manifest
+	if c.Slot == nil {
+		return fmt.Sprintf("slot %s has no ports yet", c.SlotName), nil
+	}
+	// Resolved refuses a slot with an unleased service; name those first.
+	leases, err := a.Ledger.Leases(ctx, c.Slot.ID)
+	if err != nil {
+		return "", err
+	}
+	leased := map[string]bool{}
+	for _, l := range leases {
+		leased[l.Service] = true
+	}
+	var missing []string
+	for _, s := range m.Services {
+		if !leased[s.Name] && !(s.Tier == "infra" && c.Slot.InfraFrom != nil) {
+			missing = append(missing, s.Name)
+		}
+	}
+	switch len(missing) {
+	case 0:
+	case 1:
+		return fmt.Sprintf("service %s has no port yet", missing[0]), nil
+	default:
+		return fmt.Sprintf("services %s have no ports yet", strings.Join(missing, ", ")), nil
+	}
+	r, err := a.Resolved(ctx, c)
+	if err != nil {
+		return "", err
+	}
+	rel := m.Render.DotenvPath
+	content, err := os.ReadFile(m.DotenvAbs())
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return rel + " does not exist", nil
+		}
+		return "", err
+	}
+	header, body, found := render.DotenvBlock(string(content), m.Render.DotenvMarker)
+	if !found {
+		return fmt.Sprintf("%s has no %s block", rel, m.Render.DotenvMarker), nil
+	}
+	if header != m.Project.Name+"/"+c.SlotName {
+		if _, slot, ok := strings.Cut(header, "/"); ok {
+			return fmt.Sprintf("%s was rendered for slot %s", rel, slot), nil
+		}
+		return fmt.Sprintf("%s was rendered for another slot", rel), nil
+	}
+	vars, err := render.Vars(m, r)
+	if err != nil {
+		return "", err
+	}
+	want, err := render.Format("dotenv", m, r, vars)
+	if err != nil {
+		return "", err
+	}
+	if body != want {
+		return rel + " is out of date", nil
+	}
+	return "", nil
 }

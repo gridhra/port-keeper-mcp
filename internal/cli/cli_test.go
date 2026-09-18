@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,10 +31,7 @@ func cli(t *testing.T, dir string, args ...string) (string, int) {
 }
 
 func TestEndToEnd(t *testing.T) {
-	state := t.TempDir()
-	t.Setenv("PORT_KEEPER_STATE_DIR", state)
-	t.Setenv("PORT_KEEPER_CONFIG_DIR", filepath.Join(state, "cfg"))
-	t.Setenv("PORT_KEEPER_SLOT", "")
+	isolate(t)
 	dir := t.TempDir()
 	if err := exec.Command("git", "-C", dir, "init", "-q").Run(); err != nil {
 		t.Skip("git not available")
@@ -323,5 +321,226 @@ func TestNewerLedgerStopsCLI(t *testing.T) {
 	}
 	if regexp.MustCompile(`\b2[0-9]{4}\b`).MatchString(out) {
 		t.Fatalf("message leaks a port number: %s", out)
+	}
+}
+
+// isolate points the ledger, config and home at temp dirs so a test never
+// reads the developer's real ~/.claude.json or ledger.
+func isolate(t *testing.T) {
+	t.Helper()
+	state := t.TempDir()
+	t.Setenv("PORT_KEEPER_STATE_DIR", state)
+	t.Setenv("PORT_KEEPER_CONFIG_DIR", filepath.Join(state, "cfg"))
+	t.Setenv("PORT_KEEPER_SLOT", "")
+	t.Setenv("HOME", filepath.Join(state, "home"))
+	t.Setenv("USERPROFILE", filepath.Join(state, "home"))
+}
+
+func gitInit(t *testing.T, dir string) {
+	t.Helper()
+	if err := exec.Command("git", "-C", dir, "init", "-q").Run(); err != nil {
+		t.Skip("git not available")
+	}
+}
+
+func git(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@example.invalid"}, args...)...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
+const twoServices = "[project]\nname = \"shop\"\n[[service]]\nname = \"web\"\nenv = \"WEB_PORT\"\n[[service]]\nname = \"api\"\nenv = \"API_PORT\"\n"
+
+func TestSlotNewFromBranch(t *testing.T) {
+	isolate(t)
+	dir := t.TempDir()
+	gitInit(t, dir)
+	git(t, dir, "checkout", "-q", "-b", "Feature/Login")
+	if _, code := cli(t, dir, "init", "--name", "shop"); code != 0 {
+		t.Fatal("init")
+	}
+	out, code := cli(t, dir, "slot", "new", "--from-branch")
+	if code != 0 || !strings.Contains(out, `slot name "feature-login" derived from branch "Feature/Login"`) || !strings.Contains(out, "slot shop/feature-login created") {
+		t.Fatalf("from-branch: %d %s", code, out)
+	}
+	out, code = cli(t, dir, "slot", "new", "x", "--from-branch")
+	if code != 1 || !strings.Contains(out, "not both") {
+		t.Fatalf("name and --from-branch: %d %s", code, out)
+	}
+	git(t, dir, "commit", "-q", "--allow-empty", "-m", "empty")
+	git(t, dir, "checkout", "-q", "--detach")
+	out, code = cli(t, dir, "slot", "new", "--from-branch")
+	if code != 1 || !strings.Contains(out, "detached") {
+		t.Fatalf("detached: %d %s", code, out)
+	}
+	out, code = cli(t, t.TempDir(), "slot", "new", "--from-branch")
+	if code != 1 || !strings.Contains(out, "not inside a git repository") {
+		t.Fatalf("outside git: %d %s", code, out)
+	}
+}
+
+func TestStatusJSON(t *testing.T) {
+	isolate(t)
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "port-keeper.toml"), []byte(twoServices), 0o644)
+	if _, code := cli(t, dir, "env"); code != 0 {
+		t.Fatal("env")
+	}
+	out, code := cli(t, dir, "status", "--json")
+	if code != 0 || strings.Count(strings.TrimSpace(out), "\n") != 0 {
+		t.Fatalf("status --json: %d %q", code, out)
+	}
+	var got statusOut
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, out)
+	}
+	if got.Project != "shop" || got.Slot != "1" || got.SlotSource != "root" || len(got.Services) != 2 {
+		t.Fatalf("fields: %+v", got)
+	}
+	if got.Services[0].Service != "web" || got.Services[0].Port < 20000 || got.Services[0].State != "leased" || got.Services[0].Proto != "http" {
+		t.Fatalf("service row: %+v", got.Services[0])
+	}
+	if out, code := cli(t, dir, "status", "--json", "--slot", "nope"); code != 1 || strings.HasPrefix(out, "{") {
+		t.Fatalf("unknown slot: %d %s", code, out)
+	}
+}
+
+func TestContextReportsEnvDrift(t *testing.T) {
+	isolate(t)
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "port-keeper.toml"), []byte(twoServices), 0o644)
+	cli(t, dir, "env")
+	out, code := cli(t, dir, "context", "--json")
+	if code != 0 || strings.Contains(out, "env_stale") {
+		t.Fatalf("fresh env reported stale: %d %s", code, out)
+	}
+	os.WriteFile(filepath.Join(dir, "port-keeper.toml"), []byte(twoServices+"[[service]]\nname = \"mail\"\nenv = \"MAIL_PORT\"\n"), 0o644)
+	out, code = cli(t, dir, "context", "--json")
+	if code != 0 || !strings.Contains(out, `"env_stale":true`) || !strings.Contains(out, `"env_stale_reason":"service mail has no port yet"`) || !strings.Contains(out, "Run `port-keeper env` to refresh .env.local") || strings.Contains(out, "20000") {
+		t.Fatalf("stale after manifest change: %d %s", code, out)
+	}
+	cli(t, dir, "env")
+	if out, _ := cli(t, dir, "context", "--json"); strings.Contains(out, "env_stale") {
+		t.Fatalf("still stale after env: %s", out)
+	}
+	os.Remove(filepath.Join(dir, ".env.local"))
+	out, _ = cli(t, dir, "context")
+	if !strings.Contains(out, "(.env.local does not exist)") {
+		t.Fatalf("missing file not reported: %s", out)
+	}
+	// The Claude hook relays the same instruction, even in the one-sentence CwdChanged form.
+	elsewhere := t.TempDir()
+	old, _ := os.Getwd()
+	os.Chdir(elsewhere)
+	defer os.Chdir(old)
+	a, err := appForTest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	var hookOut bytes.Buffer
+	stdin := strings.NewReader(`{"hook_event_name":"CwdChanged","cwd":"` + dir + `","new_cwd":"` + dir + `"}`)
+	if err := cmdHook(context.Background(), a, elsewhere, "", []string{"claude"}, stdin, &hookOut); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(hookOut.String(), `"systemMessage"`) || !strings.Contains(hookOut.String(), "refresh .env.local (.env.local does not exist)") || strings.Contains(hookOut.String(), "20000") {
+		t.Fatalf("CwdChanged: %s", hookOut.String())
+	}
+}
+
+func TestDoctorChecksAndExitCode(t *testing.T) {
+	isolate(t)
+	home := os.Getenv("HOME")
+	os.MkdirAll(home, 0o755)
+	os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"mcpServers":{"port-keeper":{"command":"port-keeper","args":["mcp"],"env":{"PORT_KEEPER_TOKEN":"x"}}}}`), 0o600)
+	dir := t.TempDir()
+	gitInit(t, dir)
+	cli(t, dir, "init", "--name", "shop")
+	os.WriteFile(filepath.Join(dir, ".env"), []byte("WEB_PORT=3000\n"), 0o644)
+	git(t, dir, "add", ".env")
+	cli(t, dir, "env")
+	out, code := cli(t, dir, "doctor")
+	if code != 0 {
+		t.Fatalf("doctor with warnings only: %d %s", code, out)
+	}
+	for _, want := range []string{
+		"[ok] MCP client configs: 1 file(s) checked, 1 port-keeper entry",
+		"[warn] " + home + "/.claude.json: port-keeper entry \"port-keeper\" sets a secret-looking env var",
+		"[warn] .env sets WEB_PORT to a fixed value",
+		"[ok] .env.local matches the ledger",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("doctor lacks %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "3000") || strings.Contains(out, "PORT_KEEPER_TOKEN") {
+		t.Fatalf("doctor leaks a value:\n%s", out)
+	}
+	os.Remove(filepath.Join(dir, ".env.local"))
+	if out, _ := cli(t, dir, "doctor"); !strings.Contains(out, "[warn] .env.local does not exist (port-keeper env)") {
+		t.Fatalf("drift not reported:\n%s", out)
+	}
+	// A tracked render target is a failure and fails the command.
+	cli(t, dir, "env")
+	git(t, dir, "add", "-f", ".env.local")
+	out, code = cli(t, dir, "doctor")
+	if code != 1 || !strings.Contains(out, "[fail] .env.local is tracked") || !strings.Contains(out, "1 check(s) failed") {
+		t.Fatalf("doctor with a failure: %d %s", code, out)
+	}
+	git(t, dir, "rm", "-q", "-f", "--cached", ".env.local")
+	if _, code := cli(t, dir, "doctor"); code != 0 {
+		t.Fatalf("doctor after fix: %d", code)
+	}
+}
+
+func TestCompletionScripts(t *testing.T) {
+	isolate(t)
+	dir := t.TempDir()
+	for shell, marker := range map[string]string{"zsh": "#compdef port-keeper", "bash": "complete -F _port_keeper port-keeper", "fish": "complete -c port-keeper"} {
+		out, code := cli(t, dir, "completion", shell)
+		if code != 0 || !strings.Contains(out, marker) || !strings.Contains(out, "port-keeper __complete") {
+			t.Fatalf("completion %s: %d %s", shell, code, out)
+		}
+	}
+	if out, code := cli(t, dir, "completion", "pwsh"); code != 1 || !strings.Contains(out, "unsupported shell") {
+		t.Fatalf("completion pwsh: %d %s", code, out)
+	}
+}
+
+func TestCompleteCandidates(t *testing.T) {
+	isolate(t)
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "port-keeper.toml"), []byte(twoServices), 0o644)
+	numbers := regexp.MustCompile(`\d{4,}`)
+	expect := func(want string, args ...string) {
+		t.Helper()
+		out, code := cli(t, dir, append([]string{"__complete"}, args...)...)
+		if code != 0 || out != want {
+			t.Fatalf("__complete %v: %d %q, want %q", args, code, out, want)
+		}
+		if numbers.MatchString(out) {
+			t.Fatalf("__complete %v prints a number: %q", args, out)
+		}
+	}
+	expect("web\napi\n", "service")
+	expect("", "slot")
+	cli(t, dir, "env")
+	expect("1\n", "slot")
+	expect("", "bogus")
+	expect("", "service", "extra")
+	out, _ := cli(t, dir, "__complete", "format")
+	if !strings.Contains(out, "dotenv\n") || !strings.Contains(out, "claude-env\n") {
+		t.Fatalf("formats: %q", out)
+	}
+	out, _ = cli(t, dir, "__complete", "command")
+	if !strings.Contains(out, "doctor\n") || strings.Contains(out, "__complete") {
+		t.Fatalf("commands: %q", out)
+	}
+	// Outside a project everything is silent and exits 0.
+	dir = t.TempDir()
+	for _, kind := range []string{"service", "slot"} {
+		expect("", kind)
 	}
 }

@@ -20,6 +20,7 @@ import (
 
 	"github.com/gridhra/port-keeper-mcp/internal/app"
 	"github.com/gridhra/port-keeper-mcp/internal/config"
+	"github.com/gridhra/port-keeper-mcp/internal/doctor"
 	"github.com/gridhra/port-keeper-mcp/internal/gitx"
 	"github.com/gridhra/port-keeper-mcp/internal/manifest"
 	"github.com/gridhra/port-keeper-mcp/internal/mcpserver"
@@ -33,21 +34,22 @@ const usage = `port-keeper — local ledger for development ports
 
 Usage:
   port-keeper init [--name <project>] [--here]  write port-keeper.toml and the .gitignore entry
-  port-keeper slot new [<name>] [--infra-from <slot>] [--no-bind]
+  port-keeper slot new [<name>] [--from-branch] [--infra-from <slot>] [--no-bind]
   port-keeper slot ls [--pins]
   port-keeper slot rm <name> [--force] [--cascade]
   port-keeper env [--format dotenv|export|json|mise|direnv|claude-env] [--stdout] [--if-present]
   port-keeper url <service> | <project>/<slot>/<service> [--open]
-  port-keeper status
+  port-keeper status [--json]
   port-keeper gc [--yes]
-  port-keeper doctor [--fix]
+  port-keeper doctor [--fix]                    self-check; exits 1 when a check fails
   port-keeper pin <service> <port> --reason <text> [--force]
   port-keeper pin <service>=<port> [...] --reason <text> [--force]
   port-keeper unpin <service> [...] | --all
   port-keeper reassign <service>                move a service to a different pooled port
   port-keeper mcp                               run the stdio MCP server
-  port-keeper context [--json]                  where am I: project, slot, readiness and what to do next (no numbers)
+  port-keeper context [--json] [--if-present]   where am I: project, slot, readiness and what to do next (no numbers)
   port-keeper hook claude                       Claude Code adapter for SessionStart / CwdChanged (uses context + env)
+  port-keeper completion zsh|bash|fish          print a shell completion script
   port-keeper version
 
 Global flags:
@@ -94,6 +96,17 @@ func Main(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case "version", "--version", "-V":
 		fmt.Fprintf(stdout, "port-keeper %s (%s/%s)\n", Version, runtime.GOOS, runtime.GOARCH)
+		return 0
+	case "completion":
+		if err := cmdCompletion(cargs, stdout); err != nil {
+			fmt.Fprintf(stderr, "port-keeper: %v\n", err)
+			return 1
+		}
+		return 0
+	case "__complete":
+		// Hidden helper for the completion scripts: never fails, never prints errors.
+		cwd, _ := os.Getwd()
+		cmdComplete(context.Background(), cwd, cargs, stdout)
 		return 0
 	}
 	if err := run(context.Background(), cmd, cargs, slot, stdout, stderr); err != nil {
@@ -266,17 +279,34 @@ func cmdSlotNew(ctx context.Context, a *app.App, cwd, slot string, args []string
 	fs := flag.NewFlagSet("slot new", flag.ContinueOnError)
 	infra := fs.String("infra-from", "", "share tier=infra services from this slot")
 	noBind := fs.Bool("no-bind", false, "do not bind this working copy to the new slot")
+	fromBranch := fs.Bool("from-branch", false, "name the slot after the current git branch")
 	pos, err := parseMixed(fs, args)
-	if err != nil {
-		return err
-	}
-	c, err := a.Resolve(ctx, cwd, slot)
 	if err != nil {
 		return err
 	}
 	name := first(pos)
 	if name == "" && slot != "" {
 		name = slot
+	}
+	if *fromBranch {
+		if name != "" {
+			return errors.New("slot new: pass either a name (or --slot) or --from-branch, not both")
+		}
+		if !gitx.InRepo(cwd) {
+			return errors.New("--from-branch: not inside a git repository")
+		}
+		branch := gitx.Branch(cwd)
+		if branch == "" {
+			return errors.New("--from-branch: HEAD is detached; pass a slot name instead")
+		}
+		if name, err = app.SlotNameFromBranch(branch); err != nil {
+			return err
+		}
+		fmt.Fprintf(stdout, "slot name %q derived from branch %q\n", name, branch)
+	}
+	c, err := a.Resolve(ctx, cwd, slot)
+	if err != nil {
+		return err
 	}
 	r, created, err := a.SlotNew(ctx, c, app.NewSlotOptions{Name: name, InfraFrom: *infra, BindRoot: !*noBind})
 	if err != nil {
@@ -513,8 +543,33 @@ func openBrowser(u string) error {
 
 // --- status ---
 
+// statusOut is what `port-keeper status --json` prints. Unlike the MCP status
+// tool it carries the port numbers, as the text table already does.
+type statusOut struct {
+	Project    string          `json:"project"`
+	Slot       string          `json:"slot"`
+	SlotSource string          `json:"slot_source"`
+	Services   []statusService `json:"services"`
+	Warnings   []string        `json:"warnings,omitempty"`
+}
+
+type statusService struct {
+	Service     string `json:"service"`
+	Port        int    `json:"port"`
+	Proto       string `json:"proto"`
+	Tier        string `json:"tier"`
+	State       string `json:"state"`
+	Shared      bool   `json:"shared"`
+	Pinned      bool   `json:"pinned"`
+	Listener    string `json:"listener,omitempty"`
+	ListenerCwd string `json:"listener_cwd,omitempty"`
+	LastSeen    string `json:"last_seen,omitempty"`
+}
+
 func cmdStatus(ctx context.Context, a *app.App, cwd, slot string, args []string, stdout io.Writer) error {
-	if err := noPositionals("status", flag.NewFlagSet("status", flag.ContinueOnError), args); err != nil {
+	fs := flag.NewFlagSet("status", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "machine-readable output (one line)")
+	if err := noPositionals("status", fs, args); err != nil {
 		return err
 	}
 	c, err := a.Resolve(ctx, cwd, slot)
@@ -524,9 +579,33 @@ func cmdStatus(ctx context.Context, a *app.App, cwd, slot string, args []string,
 	if err := c.RequireBound(); err != nil {
 		return err
 	}
-	warn(stdout, c)
+	if !*asJSON {
+		warn(stdout, c)
+	}
 	rows, err := a.Status(ctx, c, true)
 	if err != nil {
+		return err
+	}
+	if *asJSON {
+		out := statusOut{Project: c.Manifest.Project.Name, Slot: c.SlotName, SlotSource: c.SlotSource, Services: make([]statusService, 0, len(rows)), Warnings: c.Warnings()}
+		for _, r := range rows {
+			s := statusService{Service: r.Service, Port: r.Port, Proto: r.Proto, Tier: r.Tier, State: string(r.State), Shared: r.Shared, Pinned: r.Pinned}
+			if r.Owner.PID != 0 {
+				s.Listener = r.ListenerLabel()
+			}
+			if r.State == app.StateHijacked {
+				s.ListenerCwd = r.Owner.Cwd
+			}
+			if r.LastSeen != nil {
+				s.LastSeen = r.LastSeen.UTC().Format(time.RFC3339)
+			}
+			out.Services = append(out.Services, s)
+		}
+		enc, err := json.Marshal(out)
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintln(stdout, string(enc))
 		return err
 	}
 	fmt.Fprintf(stdout, "%s/%s (slot from %s)\n", c.Manifest.Project.Name, c.SlotName, c.SlotSource)
@@ -611,12 +690,20 @@ func cmdDoctor(ctx context.Context, a *app.App, cwd string, args []string, stdou
 	if err := noPositionals("doctor", fs, args); err != nil {
 		return err
 	}
-	problems := 0
+	problems, fails := 0, 0
 	report := func(level, msg string) {
 		if level != "ok" {
 			problems++
 		}
+		if level == "fail" {
+			fails++
+		}
 		fmt.Fprintf(stdout, "[%s] %s\n", level, msg)
+	}
+	emit := func(fs []doctor.Finding) {
+		for _, f := range fs {
+			report(string(f.Level), f.Msg)
+		}
 	}
 	dir := config.StateDir()
 	if st, err := os.Stat(dir); err == nil {
@@ -652,7 +739,14 @@ func cmdDoctor(ctx context.Context, a *app.App, cwd string, args []string, stdou
 		report("warn", w)
 	}
 	report("ok", fmt.Sprintf("pool holds %d ports (%s)", a.Cfg.Pool.Capacity(), poolString(a.Cfg.Pool)))
-	if c, err := a.Resolve(ctx, cwd, ""); err == nil {
+	c, cerr := a.Resolve(ctx, cwd, "")
+	home, _ := os.UserHomeDir()
+	root := ""
+	if cerr == nil {
+		root = gitx.Toplevel(c.Manifest.Dir)
+	}
+	emit(doctor.MCPConfigs(home, root))
+	if cerr == nil {
 		m := c.Manifest
 		if gitx.InRepo(m.Dir) {
 			switch {
@@ -663,10 +757,21 @@ func cmdDoctor(ctx context.Context, a *app.App, cwd string, args []string, stdou
 			default:
 				report("ok", m.Render.DotenvPath+" is gitignored")
 			}
+			emit(doctor.TrackedDotenv(m))
 		}
 		for _, s := range m.Services {
 			if len(s.Label) > manifest.MaxLabel {
 				report("warn", fmt.Sprintf("service %q label is longer than %d characters; it is cut for agents", s.Name, manifest.MaxLabel))
+			}
+		}
+		if c.Slot != nil && c.UnboundRoot == "" {
+			switch reason, err := a.EnvDrift(ctx, c); {
+			case err != nil:
+				report("warn", "env drift check skipped: "+err.Error())
+			case reason != "":
+				report("warn", reason+" (port-keeper env)")
+			default:
+				report("ok", m.Render.DotenvPath+" matches the ledger")
 			}
 		}
 	}
@@ -700,6 +805,9 @@ func cmdDoctor(ctx context.Context, a *app.App, cwd string, args []string, stdou
 	}
 	if problems == 0 {
 		fmt.Fprintln(stdout, "all green")
+	}
+	if fails > 0 {
+		return fmt.Errorf("%d check(s) failed", fails)
 	}
 	return nil
 }
@@ -856,6 +964,29 @@ type ContextInfo struct {
 	Services   []string `json:"services"`
 	Guidance   string   `json:"guidance"`
 	Warnings   []string `json:"warnings,omitempty"`
+	// EnvStale is set when the rendered dotenv file no longer matches the
+	// manifest and the ledger; EnvStaleReason says why, in names only.
+	EnvStale       bool   `json:"env_stale,omitempty"`
+	EnvStaleReason string `json:"env_stale_reason,omitempty"`
+}
+
+// addEnvDrift fills the env_stale fields and appends the refresh instruction to
+// the guidance. A failing drift check must never fail `context`, so errors are
+// ignored. Callers that lease ports first (the hook) call it after doing so.
+func addEnvDrift(ctx context.Context, a *app.App, c *app.Context, info *ContextInfo) {
+	if !info.Ready {
+		return
+	}
+	reason, err := a.EnvDrift(ctx, c)
+	if err != nil || reason == "" {
+		return
+	}
+	info.EnvStale, info.EnvStaleReason = true, reason
+	info.Guidance += " " + envDriftSentence(c, reason)
+}
+
+func envDriftSentence(c *app.Context, reason string) string {
+	return fmt.Sprintf("Run `port-keeper env` to refresh %s (%s).", c.Manifest.Render.DotenvPath, reason)
 }
 
 func contextInfo(ctx context.Context, a *app.App, cwd, slot string) (ContextInfo, *app.Context, error) {
@@ -884,13 +1015,14 @@ func cmdContext(ctx context.Context, a *app.App, cwd, slot string, args []string
 	if err := noPositionals("context", fs, args); err != nil {
 		return err
 	}
-	info, _, err := contextInfo(ctx, a, cwd, slot)
+	info, c, err := contextInfo(ctx, a, cwd, slot)
 	if err != nil {
 		if *ifPresent && errors.Is(err, manifest.ErrNotFound) {
 			return nil
 		}
 		return err
 	}
+	addEnvDrift(ctx, a, c, &info)
 	if *asJSON {
 		enc, err := json.Marshal(info)
 		if err != nil {

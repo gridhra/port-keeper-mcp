@@ -203,6 +203,22 @@ func Markers(marker, project, slot string) (string, string) {
 	return fmt.Sprintf("# >>> %s: %s/%s >>>", marker, project, slot), fmt.Sprintf("# <<< %s <<<", marker)
 }
 
+// blockRE matches the marker block; group 1 is the "project/slot" header and
+// group 2 the body between the marker lines.
+func blockRE(marker string) *regexp.Regexp {
+	return regexp.MustCompile(`(?ms)^# >>> ` + regexp.QuoteMeta(marker) + `: ([^\n]*?) >>>\n(.*?)^# <<< ` + regexp.QuoteMeta(marker) + ` <<<\n?`)
+}
+
+// DotenvBlock finds the marker block in content and returns its "project/slot"
+// header and body (what Format("dotenv") produced).
+func DotenvBlock(content, marker string) (header, body string, found bool) {
+	m := blockRE(marker).FindStringSubmatch(content)
+	if m == nil {
+		return "", "", false
+	}
+	return m[1], m[2], true
+}
+
 // WriteDotenv replaces (or appends) the marker block in the file at path.
 // The file is created with mode 0600 when missing. It is idempotent.
 func WriteDotenv(path, marker, project, slot, body string) (changed bool, err error) {
@@ -213,7 +229,7 @@ func WriteDotenv(path, marker, project, slot, body string) (changed bool, err er
 		return false, err
 	}
 	content := string(existing)
-	re := regexp.MustCompile(`(?ms)^# >>> ` + regexp.QuoteMeta(marker) + `: [^\n]*>>>\n.*?^# <<< ` + regexp.QuoteMeta(marker) + ` <<<\n?`)
+	re := blockRE(marker)
 	var updated string
 	if re.MatchString(content) {
 		updated = re.ReplaceAllLiteralString(content, block)

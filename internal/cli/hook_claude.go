@@ -56,7 +56,8 @@ func cmdHook(ctx context.Context, a *app.App, cwd, slot string, args []string, s
 	}
 	if !info.Ready {
 		// Do not create slots from a hook; just relay the core's guidance.
-		return printHook(stdout, event, "port-keeper: "+info.Guidance)
+		text := "port-keeper: " + info.Guidance
+		return printHook(stdout, event, text, firstSentence(text))
 	}
 	text, _, err := a.EnvText(ctx, c, "export")
 	if err != nil {
@@ -75,11 +76,26 @@ func cmdHook(ctx context.Context, a *app.App, cwd, slot string, args []string, s
 			return err
 		}
 	}
+	// EnvText leased any missing service, so the drift check now reports only
+	// what `port-keeper env` still has to write to the file.
+	addEnvDrift(ctx, a, c, &info)
 	msg := "port-keeper: " + info.Guidance
+	short := firstSentence(msg)
+	if info.EnvStale {
+		short += " " + envDriftSentence(c, info.EnvStaleReason)
+	}
 	for _, w := range info.Warnings {
 		msg += " Note: " + w + "."
 	}
-	return printHook(stdout, event, msg)
+	return printHook(stdout, event, msg, short)
+}
+
+// firstSentence cuts text at the first sentence boundary.
+func firstSentence(text string) string {
+	if i := strings.Index(text, ". "); i > 0 {
+		return text[:i+1]
+	}
+	return text
 }
 
 func readHookInput(stdin io.Reader) hookInput {
@@ -98,18 +114,14 @@ func readHookInput(stdin io.Reader) hookInput {
 }
 
 // printHook writes the JSON reply for the event. SessionStart accepts
-// additionalContext; CwdChanged only shows systemMessage, so the context is
-// condensed to its first sentence there.
-func printHook(w io.Writer, event, text string) error {
+// additionalContext and gets the full text; CwdChanged only shows a
+// systemMessage, so it gets the condensed short form.
+func printHook(w io.Writer, event, text, short string) error {
 	var doc map[string]any
 	switch event {
 	case "SessionStart":
 		doc = map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": event, "additionalContext": text}}
 	default:
-		short := text
-		if i := strings.Index(short, ". "); i > 0 {
-			short = short[:i+1]
-		}
 		doc = map[string]any{"systemMessage": short}
 	}
 	enc, err := json.Marshal(doc)

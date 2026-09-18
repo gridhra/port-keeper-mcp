@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -585,4 +586,83 @@ func TestSlotNewWithoutNameIsIdempotentOnBoundWorktree(t *testing.T) {
 	if len(slots) != 1 {
 		t.Fatalf("%d slots after retries", len(slots))
 	}
+}
+
+func TestSlotNameFromBranch(t *testing.T) {
+	long := strings.Repeat("a", 70) + "-b"
+	cases := []struct{ in, want string }{
+		{"main", "main"},
+		{"feature/Login_v2.0", "feature-login-v2-0"},
+		{"--x--", "x"},
+		{"a//b", "a-b"},
+		{long, strings.Repeat("a", 63)},
+	}
+	for _, c := range cases {
+		got, err := SlotNameFromBranch(c.in)
+		if err != nil || got != c.want {
+			t.Errorf("SlotNameFromBranch(%q) = %q, %v; want %q", c.in, got, err, c.want)
+		}
+	}
+	for _, in := range []string{"", "日本語", "///"} {
+		if got, err := SlotNameFromBranch(in); err == nil {
+			t.Errorf("SlotNameFromBranch(%q) = %q; want error", in, got)
+		}
+	}
+}
+
+func TestEnvDrift(t *testing.T) {
+	ctx := context.Background()
+	a := newApp(t)
+	dir := project(t, shop)
+	numbers := regexp.MustCompile(`\d{4,}`)
+	check := func(want string) {
+		t.Helper()
+		c, err := a.Resolve(ctx, dir, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := a.EnvDrift(ctx, c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Fatalf("drift: got %q, want %q", got, want)
+		}
+		if numbers.MatchString(got) {
+			t.Fatalf("drift reason carries a number: %q", got)
+		}
+	}
+	check("slot 1 has no ports yet")
+	c, _ := a.Resolve(ctx, dir, "")
+	if _, _, err := a.SlotNew(ctx, c, NewSlotOptions{BindRoot: true}); err != nil {
+		t.Fatal(err)
+	}
+	check(".env.local does not exist")
+	c, _ = a.Resolve(ctx, dir, "")
+	text, _, err := a.EnvText(ctx, c, "dotenv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := a.WriteDotenv(ctx, c, text); err != nil {
+		t.Fatal(err)
+	}
+	check("")
+	// A service added to the manifest has no lease until env runs.
+	os.WriteFile(filepath.Join(dir, manifest.FileName), []byte(shop+"\n[[service]]\nname = \"mail\"\nenv = \"MAIL_PORT\"\n"), 0o644)
+	check("service mail has no port yet")
+	// Once leased, the file is still the old rendering.
+	c, _ = a.Resolve(ctx, dir, "")
+	if _, err := a.Sync(ctx, c); err != nil {
+		t.Fatal(err)
+	}
+	check(".env.local is out of date")
+	// A block rendered for another slot, a missing block, and a missing file.
+	envPath := filepath.Join(dir, ".env.local")
+	content, _ := os.ReadFile(envPath)
+	os.WriteFile(envPath, []byte(strings.Replace(string(content), "shop/1", "shop/9", 1)), 0o600)
+	check(".env.local was rendered for slot 9")
+	os.WriteFile(envPath, []byte("OTHER=1\n"), 0o600)
+	check(".env.local has no port-keeper block")
+	os.Remove(envPath)
+	check(".env.local does not exist")
 }

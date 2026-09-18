@@ -177,3 +177,17 @@ func TestNewlinesNeverSplitLines(t *testing.T) {
 		}
 	}
 }
+
+func TestDotenvBlock(t *testing.T) {
+	content := "KEEP=1\n\n# >>> port-keeper: shop/2 >>>\nWEB_PORT=20000\nAPI_PORT=20001\n# <<< port-keeper <<<\nTAIL=1\n"
+	header, body, found := DotenvBlock(content, "port-keeper")
+	if !found || header != "shop/2" || body != "WEB_PORT=20000\nAPI_PORT=20001\n" {
+		t.Fatalf("got %q %q %v", header, body, found)
+	}
+	if _, _, found := DotenvBlock("KEEP=1\n", "port-keeper"); found {
+		t.Fatal("found a block in a file without one")
+	}
+	if _, _, found := DotenvBlock(content, "other"); found {
+		t.Fatal("matched a block with a different marker")
+	}
+}
