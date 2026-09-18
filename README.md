@@ -287,6 +287,12 @@ ledger is shared.
   take, and the OS ephemeral ranges. The only way out of the pool is an
   explicit, reasoned `pin`.
 - **Stable.** A slot keeps its block until you release it, across reboots.
+- **Nothing is reclaimed behind your back.** A slot keeps its ports until you
+  release it, however long its servers stay down. `port-keeper gc` lists the
+  slots that look abandoned (nothing listening for `stale_days`, or the working
+  copy is gone) and releases them only with `--yes`. A dev server that has been
+  off for a month must not find its ports handed to another slot when it comes
+  back.
 - **One slot per working copy.** A working copy that has no slot of its own
   is refused the default slot's ports: `env`, `url`, `status` and the MCP
   tools ask you to run `slot new` first (or to pass `--slot 1` if sharing the
