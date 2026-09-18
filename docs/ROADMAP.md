@@ -22,10 +22,10 @@
 `port-keeper mcp`（stdio）と8ツール、annotations、`structuredContent`、Claude Codeの登録・フック雛形。
 完了条件: 「shopのslot5のadminのURL」が1ツール呼び出しで返る。`current_context`の出力に番号が無いことをスキーマで検証。
 
-### M2 — 配布 — 実装済み・初回リリース待ち（2026-09-18）
+### M2 — 配布 — 完了（2026-09-18）
 
 `v*`タグのpushで動くリリース（GitHub Actionsの`release.yml`とGoReleaser。macOS／Linux／Windows、arm64／amd64の6アーカイブ、`checksums.txt`、ビルド来歴の証明、公開後に変更できないRelease）、インストールスクリプト（`scripts/install.sh`／`install.ps1`。チェックサムの照合が必須で、`sudo`を使わない）、台帳のスキーマの版、README 3言語の導入手順、メンテナ向けの`RELEASING.md`、Glama（MCPサーバーの登録・評価サイト）への提出前検証（`scripts/glama.sh`）。
-残り: `v0.1.0`のタグpush、公開物の確認、Glamaへの登録とawesome-mcp-serversへの掲載申請。手順は`RELEASING.md`。
+`v0.1.0`を公開し、Glamaに登録した。awesome-mcp-serversへの掲載PRは提出済み（#14635）。手順と記録は`RELEASING.md`。
 完了条件: 新しい端末で5分で導入でき、`doctor`が緑。
 
 当初の案から変えた点（理由は`docs/DESIGN.md`の§9.2）:
