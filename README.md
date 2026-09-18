@@ -2,6 +2,8 @@
 
 **English** | [日本語](README.ja.md) | [简体中文](README.zh-CN.md)
 
+[![port-keeper-mcp MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/gridhra/port-keeper-mcp/badges/score.svg)](https://glama.ai/mcp/servers/gridhra/port-keeper-mcp)
+
 A local ledger for development ports, with an MCP server on top, written in Go.
 It gives every parallel coding agent its own set of ports, so each one can run
 the whole stack at the same time as the others.
