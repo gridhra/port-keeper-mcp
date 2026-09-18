@@ -14,7 +14,7 @@
 - [x] 2.1 `scripts/readme_sync_check.sh`。確認: 3ファイルで0終了。表の行を1言語だけ変えると差分を出して1終了（README編集中に実際に検出した）
 - [x] 2.2 `scripts/agent_eval.sh`の`--list`／`--dry-run`／本番の経路。確認: `--list`と`--dry-run`がAPI無しで0終了。stream-jsonを模した`claude`のスタブでPASS／FAIL／setup failureの判定を確認し、本番（4.1）で実際の出力に対して通した
 - [x] 2.3 `ci.yml`: `test`に同期検査と`--dry-run`、`release-config`に`--list`。確認: pushのあとCIが緑（未実施。pushはユーザーの指示待ち）
-- [ ] 2.4 shellcheck。確認: `release-config`ジョブが通る（この端末にshellcheckが無いため未確認。pushのあとCIで確かめる）
+- [x] 2.4 shellcheck。確認: 初回のpushで`release-config`がSC2317（trap経由でだけ呼ぶ関数を到達不能と誤検知）で落ち、`# shellcheck disable=SC2317`を付けて通した
 
 ## 3. 例と文書
 
@@ -32,7 +32,7 @@
   s2             5/5 Bash=3,current_context=1,render_env=1,slot_new=1         0/0 0.109825 PASS
   s3             2/4 Bash=2,current_context=1                         0/1 0.0620642 PASS
   ```
-- [ ] 4.2 `main`にcommitしてpushし、CIの3ジョブが緑であることを確かめる（ユーザーの指示があってから）
-- [ ] 4.3 `v0.2.0`のタグをpushする（ユーザーの明示の指示があってから。`RELEASING.md` §1）。確認: `release.yml`が成功し、`port-keeper --version`が`0.2.0`
+- [x] 4.2 `main`にcommitしてpushし、CIの3ジョブが緑であることを確かめた（2026-09-18、10commit）
+- [x] 4.3 `v0.2.0`のタグをpushした（ユーザーの指示「release」による）。確認: `release.yml`成功、Releaseは公開済みで変更不可、6アーカイブ＋`checksums.txt`、チェックサムと来歴の証明が通り、インストールスクリプトで入れ直した`port-keeper --version`が`0.2.0`、`doctor`緑、既存のリースはそのまま
 - [ ] 4.4 Glamaの版を更新する（`RELEASING.md` §8）。確認: Glamaで`0.2.0`が`latest`
-- [ ] 4.5 本changeをアーカイブし、主specに`doctor`と`shell-completion`を同期する。確認: `openspec list`が空
+- [x] 4.5 本changeをアーカイブし、主specに`doctor`と`shell-completion`を同期した。確認: `openspec list`が空

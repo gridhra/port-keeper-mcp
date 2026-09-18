@@ -33,7 +33,7 @@
 - **npmラッパー（`npx port-keeper-mcp`）は作らない**。フックと人の操作がPATH上の`port-keeper`コマンドを必要とするので、都度起動ではなく常設インストールを導入経路にした。同じ作者のatx-mcpで、npmの公開にメンテナの手作業が多かったことも理由である
 - **コンテナイメージは配らない**（READMEのNon-goals）。したがってMCP公式レジストリにoci形式では登録しない
 
-### M2.5 — Agent UXの仕上げ（v0.2.0）— 実装完了（2026-09-18。リリースは未実施）
+### M2.5 — Agent UXの仕上げ（v0.2.0）— 完了（2026-09-18に`v0.2.0`を公開）
 
 `v0.1.0`を使って分かった「次に躓く点」をまとめて直した。内容: `doctor`のMCP設定検査（値は出さない）と追跡済み`.env`の検査、書き出した`.env.local`の古さ検出（`context --json`の`env_stale`、Claude Codeフック、`doctor`）、`status --json`、`slot new --from-branch`、`completion zsh|bash|fish`、`docs/examples/`（mise／direnv／docker compose／Vite／Playwright／リバースプロキシ／monorepo。英語のみ）、README 3言語の同期検査（`scripts/readme_sync_check.sh`、CI）、エージェントeval（`scripts/agent_eval.sh`、手動のリリースゲート）。決定と理由は`docs/DESIGN.md`の§9.3。
 完了条件: `sh scripts/agent_eval.sh`の3シナリオが往復数と番号露出の上限内で通る。

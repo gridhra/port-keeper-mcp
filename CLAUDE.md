@@ -38,7 +38,7 @@ Go 1.25以上（ツールチェーンは自動取得される）。テストは`
 
 ## 現状
 
-`docs/ROADMAP.md`を参照。M0（台帳コア）とM1（MCP）は完了。M2（配布）は完了し、`v0.1.0`を公開してGlamaに登録した。M2.5（Agent UXの仕上げ: `doctor`の追加検査、`.env.local`の古さ検出、`status --json`、`slot new --from-branch`、`completion`、`docs/examples/`、README同期検査、エージェントeval）は実装済みで、`v0.2.0`として出す。決定と理由は`docs/DESIGN.md`の§9.3。awesome-mcp-serversへの掲載PRは提出済み。リリースの手順、失敗したときのやり直し、Glamaの手順は`RELEASING.md`にある。npmラッパーとコンテナイメージは作らないと決めている（理由は`docs/DESIGN.md`の§9.2）。MCP公式レジストリへの登録は未定（ROADMAPのM3）。Windowsはコンパイルのみで未検証。
+`docs/ROADMAP.md`を参照。M0（台帳コア）とM1（MCP）は完了。M2（配布）は完了し、`v0.1.0`を公開してGlamaに登録した。M2.5（Agent UXの仕上げ: `doctor`の追加検査、`.env.local`の古さ検出、`status --json`、`slot new --from-branch`、`completion`、`docs/examples/`、README同期検査、エージェントeval）は完了し、`v0.2.0`を公開した。決定と理由は`docs/DESIGN.md`の§9.3。awesome-mcp-serversへの掲載PRは提出済み。リリースの手順、失敗したときのやり直し、Glamaの手順は`RELEASING.md`にある。npmラッパーとコンテナイメージは作らないと決めている（理由は`docs/DESIGN.md`の§9.2）。MCP公式レジストリへの登録は未定（ROADMAPのM3）。Windowsはコンパイルのみで未検証。
 
 配布まわりで破りやすい規則:
 
