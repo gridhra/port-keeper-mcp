@@ -37,6 +37,10 @@ jobs:
           GOOS=linux GOARCH=arm64 go build ./...
       - name: install script tests
         run: sh scripts/install_test.sh
+      - name: README mirrors in sync
+        run: sh scripts/readme_sync_check.sh
+      - name: agent eval setup (no API)
+        run: PK_EVAL_BIN=./port-keeper sh scripts/agent_eval.sh --dry-run
 
   # The release path only runs on a tag, so its inputs are checked here.
   release-config:
@@ -45,6 +49,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: shellcheck
         run: shellcheck scripts/*.sh
+      - name: agent eval scenarios list
+        run: sh scripts/agent_eval.sh --list
       - name: goreleaser check
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
