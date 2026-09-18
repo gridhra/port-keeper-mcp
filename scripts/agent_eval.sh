@@ -91,6 +91,7 @@ bin="$(command -v "$bin")"
 case "$bin" in /*) ;; *) bin="$(cd "$(dirname "$bin")" && pwd)/$(basename "$bin")" ;; esac
 
 root="$(mktemp -d)"
+# shellcheck disable=SC2317  # reached through the trap below
 cleanup() {
   pkill -f "$root" >/dev/null 2>&1 || true
   if [ "${PK_EVAL_KEEP:-0}" = 1 ]; then
