@@ -47,5 +47,5 @@
 - [x] 7.1 `scripts/glama.sh`を作る（`check <version>`と`form build-steps|cmd|placeholder`）。確認: `sh scripts/glama.sh check 0.1.0`が`OK`を出す
 - [x] 7.2 Glamaに登録する。Chromeの操作はClaude Codeが行い、ログインと所有の申告はユーザーが行う。自動リリースの設定はオフにする。確認: Glamaのチェックが`success`になり、Glama上のリリース`0.1.0`が`latest`と表示される
 - [x] 7.3 READMEの3言語にGlamaのバッジを足す。確認: 3ファイルが同じcommitで更新されている
-- [ ] 7.4 awesome-mcp-serversへの掲載PRを用意する（分類、1行の説明、バッジ）。外部への送信なので、文面をユーザーに示して確認を取ってから出す。確認: PRのURLを`RELEASING.md`に記録する
-- [ ] 7.5 本changeをアーカイブする。確認: `openspec list`が空で、`openspec/specs/distribution/spec.md`ができ、`port-ledger`の主specにスキーマの版の要件が入っている
+- [x] 7.4 awesome-mcp-serversへの掲載PRを用意する（分類、1行の説明、バッジ）。外部への送信なので、文面をユーザーに示して確認を取ってから出す。確認: PRのURLを`RELEASING.md`に記録する
+- [x] 7.5 本changeをアーカイブする。確認: `openspec list`が空で、`openspec/specs/distribution/spec.md`ができ、`port-ledger`の主specにスキーマの版の要件が入っている
