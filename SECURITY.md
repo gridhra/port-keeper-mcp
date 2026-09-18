@@ -43,8 +43,10 @@ the fix.
 port-keeper is a local, non-network tool. It reads and writes one SQLite
 file under the user's state directory, renders environment files inside a
 repository the user points it at, probes loopback ports by attempting to
-bind them, and speaks MCP over stdio. It makes no outbound network requests
-and opens no listener.
+bind them, and speaks MCP over stdio. `port-keeper doctor` additionally
+reads MCP client configuration files under the home directory and the
+repository, read-only, to warn about port numbers or tokens in them. It makes
+no outbound network requests and opens no listener.
 
 ### In scope
 
@@ -74,6 +76,10 @@ and opens no listener.
   field in a tool result).
 - **Process interference.** Any code path that signals, kills or otherwise
   interferes with a process that owns a port.
+- **Client configuration scan.** `doctor` reads MCP client configuration
+  files to warn about embedded port numbers or tokens. Any path by which it
+  prints, logs or returns a value from those files, rather than the file path
+  and the entry name, is in scope.
 
 ### Out of scope
 

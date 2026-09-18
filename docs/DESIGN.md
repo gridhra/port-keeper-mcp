@@ -237,7 +237,7 @@ docs/{DESIGN,ROADMAP}.md   README.md   SECURITY.md   server.json   npm/   .githu
 
 ### 5.5 自己点検（`doctor`）
 
-権限／描画先のgitignore／MCP設定に番号やトークンが無いか／プールが一時ポート・慣習的番号と重ならないか／自身が待ち受けていないこと／staleと固定の件数。
+権限／描画先のgitignore／MCP設定に番号やトークンが無いか（ファイル名と項目名だけを報告し、値は出さない）／追跡済みの`.env`が管理対象の変数を固定していないか／描画した`.env.local`が台帳と合っているか／プールが一時ポート・慣習的番号と重ならないか／自身が待ち受けていないこと／staleと固定の件数。失敗（`[fail]`）があれば終了コード1。
 
 ---
 
@@ -293,7 +293,7 @@ docs/{DESIGN,ROADMAP}.md   README.md   SECURITY.md   server.json   npm/   .githu
 - **CLIの追加フラグ**（§3.10の表に無いもの）: `slot new --no-bind`、`slot ls --pins`、`slot rm --force/--cascade`、`env --stdout/--if-present`、`gc --yes`、`doctor --fix`、`pin --force`、`unpin --all`、`version`、グローバル`--slot`
 - **セルフレビューで直したもの**（要修正4件）: dotenv描画への改行注入（値を必ず引用）、`render.host`の未検証（ループバック名に限定）、他スロットのブロック内番号の固定（`--force`なしは拒否。空きオフセット選択でも全リース・プール・deny・台帳外LISTENと突合）、プール縮小後に旧ブロックからプール外番号を貸す（プール再確認）。推奨のうち採用: MCP `status`を真に読み取り専用に、名前なし`slot_new`の冪等化、固定済みサービスの削除拒否、`env`後の`hijacked`再確認、`--`終端と余分な位置引数の拒否、symlinkディレクトリ経由の脱出拒否、複数OSプロセスの同時実行テスト
 - **独立レビュー（文脈を共有しない別エージェント、2026-09-17）で直したもの**: 要修正3件＝未紐づけ作業コピーでの既定スロット共有（`RequireBound`で拒否）、`PORT_KEEPER_SLOT`が紐づけより優先される（解決順を変更）、Windowsビルド不能（`SO_REUSEADDR`の無効化をビルドタグで分離。CIにクロスビルドを追加）。推奨＝MCPツールに`cwd`引数（セッションが別作業コピーへ移っても追従）、リポジトリ消失後のスロットを`gc --yes`で台帳から直接解放、`env`の警告から`reassign`の誘導を外す、`status`のプロセス名を64文字に制限し`listener`フィールドとして返す、`.env.local`の一時ファイル＋renameによる原子的書き込み、`init`の`.gitignore`判定を`git check-ignore`に、`status`の`lsof`を1回に集約、`init --here`、`stale_days`の負値拒否、CIに`govulncheck`
-- **未実装**: §5.5の「MCP設定ファイルに番号やトークンが無いか」の検査
+- **未実装**（この9.1の時点）: §5.5の「MCP設定ファイルに番号やトークンが無いか」の検査。→ v0.2.0で実装した（9.3）
 - **未実施**（この9.1を書いた2026-09-17の時点）: Homebrew tap、npmラッパー、MCPレジストリ登録、README.ja.md、Windows検証。その後の結論は、次の9.2（初回配布の準備で確定した差分）にある
 
 ### 9.2 2026-09-18: 初回配布（v0.1.0）の準備で確定した差分
@@ -311,3 +311,18 @@ docs/{DESIGN,ROADMAP}.md   README.md   SECURITY.md   server.json   npm/   .githu
 - **MCP公式レジストリへの登録は保留**。レジストリが受け付ける形式（npm／pypi／nuget／cargo／oci／mcpb）のうち、npmとoci（コンテナ）はこの節の理由で使えない。mcpb形式（GitHub Releaseに置くまとめファイル。旧称DXT）も採らない。調査（2026-09-18）で分かったこと: (1) `.mcpb`を導入できるクライアントはClaude Desktop（macOSとWindows）だけで、Claude Code、VS Code、Cursorには導入経路が無い。VS Codeは、mcpbしか持たないサーバーを一覧から落とす。(2) Claude Desktopには「開いているプロジェクトの作業ディレクトリ」が無く、起動されるサーバーの作業ディレクトリも文書化されていない。port-keeperはクライアントの作業ディレクトリからプロジェクトとスロットを解決するので、コンテナと同じ理由で成立しない。(3) コンパイル済みバイナリを同梱する種別（`server.type: "binary"`）は、macOSのClaude Desktopでは展開時に実行権限が落ちて起動しない不具合が未修理である（`modelcontextprotocol/mcpb`のissue #294）。(4) `.mcpb`の中のバイナリはPATHに入らないので、npmラッパーと同じく、版の違う2本のバイナリが1つの台帳を共有する。なお、当初の懸念だったCPU（amd64／arm64）の区別は、`server.json`の`packages`にOSとCPUごとの`.mcpb`を複数並べる方法で解決できる（Goの実例がレジストリに複数ある）ので、見送りの理由ではない。性質が合う形式は、レジストリに提案されている`go`形式（`go install`できるGoモジュールを登録する。バイナリはPATH上に常設される）で、2026-09-18時点では未マージである（`modelcontextprotocol/registry`のissue #1307とPR #1321）。再検討の条件は、そのPRのマージである。`server.json`はパッケージの記述を持たない下書きのまま置く
 - **Homebrew tapは保留**。tap用の別リポジトリと、そこへ書き込む長期の認証トークンが要る。リリースの経路に保存したトークンを置かない、という今の構成を崩すので、要望が出てから検討する
 - **コンテナイメージは配らない**（READMEのNon-goalsに追加）。port-keeperは、ホストのネットワークでの`bind`確認、ホストの`lsof`、クライアントの作業ディレクトリ、ホーム配下の台帳を直接見る。コンテナはこの4つをすべて隔離するので、機能が成立しない。MCP公式レジストリのoci形式での登録も、同じ理由で採らない
+
+### 9.3 2026-09-18: v0.2.0（Agent UXの仕上げ）で確定した差分
+
+この節は、OpenSpecのchange`agent-ux-v0-2`（`v0.1.0`公開後に、人とエージェントが次に躓く点をまとめて直した版）の実装で決まったことをまとめる。
+
+- **書き出した環境の古さ（drift）は、台帳にマニフェストのハッシュを持たず、描画物の突合で検出する**（`App.EnvDrift`）。`.env.local`のマーカーブロックを台帳から今描画し直した結果と比べ、違えば理由を名前だけの文（「service mail has no port yet」「.env.local is out of date」など）で返す。理由: §3.11のスキーマにあった`manifest_hash`列は「サービスを足したのに`env`を描き直していない」しか捉えられず、`reassign`や手編集、ファイルの削除を見逃す。突合ならこれらを全部拾え、台帳のスキーマも変えずに済む（`SchemaVersion`は1のまま）。表に出る場所は3つ: `context --json`の`env_stale`／`env_stale_reason`と案内文の末尾、Claude Codeフックの案内（CwdChangedは最初の一文しか出さないので、再描画の指示文を短い形にも足した）、`doctor`の`[warn]`。MCPの`current_context`には足していない（エージェントは`.env.local`ではなく`render_env`を使う）
+- **`doctor`のMCP設定検査**（§5.5で約束していたもの。`internal/doctor`）: 読むのは`~/.claude.json`（`mcpServers`と`projects.*.mcpServers`）、`~/.cursor/mcp.json`、`~/.codex/config.toml`（`[mcp_servers.*]`）、Claude Desktopの設定（OSごとの場所）、リポジトリの`.mcp.json`／`.cursor/mcp.json`／`.vscode/mcp.json`（キー`servers`）。名前かcommandに`port-keeper`を含む項目だけを見て、argsやenvの値に1024〜65535の数、envのキーに`token|secret|key|password`があれば`[warn]`。**値もキー名も出力しない**（ファイルパスと項目名と「何が見つかったか」だけ）。無いファイルは黙って飛ばし、壊れたファイルは`[warn]`で飛ばす。`--fix`では触らない
+- **`doctor`の追跡済みdotenv検査**: git追跡下の`.env`／`.env.*`（`.example`／`.sample`／`.template`と描画先は除く）が、マニフェストのサービスや`[[derive]]`の環境変数を数値や`host:port`に固定していれば`[warn]`（番号は出さない）。由来: 移行したプロジェクトで追跡済み`.env`の`WEB_PORT=3000`が残っていると、dotenvローダーによっては`.env.local`より勝ち、「port-keeperを入れたのに古い番号で動く」事故になる
+- **`doctor`は`[fail]`があれば終了コード1**（`[warn]`だけなら0）。`[fail]`は追跡済みの描画先と自己待ち受けの2つ。スクリプトやCIが検出できるようにした。`[warn]`を0に留めたのはフック等から安全に呼べるように
+- **`status --json`**: CLIの`status`の機械可読形。項目は`project`／`slot`／`slot_source`／`services[]`（`service`、`port`、`proto`、`tier`、`state`、`shared`、`pinned`、`listener`、`listener_cwd`、`last_seen`）／`warnings[]`。番号を含むが、CLIの`status`の表が既に出しているので規律（§4.1）には触れない。MCPの`status`ツールは変えていない（番号なしのまま）
+- **`slot new --from-branch`**: `git symbolic-ref --short -q HEAD`のブランチ名を、小文字化・`[a-z0-9]`以外を1つの`-`に・前後の`-`を除去・63バイトに切る規則でスロット名にする（`feature/Login_v2`→`feature-login-v2`）。detached HEADと名前の併用はエラー。`rev-parse --abbrev-ref`を使わないのは、未コミットの新規リポジトリで失敗し、detachedで文字列`HEAD`を返すため。スロットを自動作成しない決定（フックは案内だけ）には触れない。名付けを楽にするだけ
+- **シェル補完**（`completion zsh|bash|fish`）: 静的なスクリプトを出力し、動的な候補（スロット名、サービス名、format）は隠しコマンド`port-keeper __complete <kind>`から取る。`__complete`は`usage`に載せず、どんな失敗でも無出力・終了コード0（補完中にエラー文をコマンドラインへ出さないため）、番号は出さない。`Main`で`run`の前に分岐するのは、`run`が台帳を開けない場合に`port-keeper: …`を出して終了コード1にするため
+- **エージェントeval**（`scripts/agent_eval.sh`）は、ROADMAPの「Agent UXの規律」5で約束したリリースゲートを、CIではなく**手動**で回す形にした。理由: APIキーと費用が要り、結果が非決定的。CIでは`--list`と`--dry-run`（temp台帳とdemoプロジェクトを組み立てて`claude`のコマンド行を印字するだけ）だけを走らせ、shellcheckも掛ける。3シナリオ（slot 3のadminのURLを聞く／未紐づけのworktreeに環境を用意させる／`dev.sh`を起動させる）で、往復数と、最終回答とBashコマンドに漏れたプール範囲の番号を数える。`claude -p --setting-sources local`で回す（開発者のユーザー設定＝port-keeper自身のフックを読まない。`--bare`は`ANTHROPIC_API_KEY`が必須で定額プランでは使えず、`--safe-mode`は`--mcp-config`のサーバーまで切ってしまうことを実測した）。フックの出力に`port-keeper`が混じれば「開発者の設定が漏れた」としてFAIL。stream-jsonの項目名（`num_turns`、`total_cost_usd`、`result`、`system/init`の`mcp_servers`）は実行して確認済み
+  - **初回のevalで見つけて直したこと**（2026-09-18、`sonnet`）: (1) `slot_new`の要約文が「call render_env for its environment」だったため、エージェントは`render_env`で番号を受け取り、`.env.local`を自分で書こうとし、回答に番号5個を並べた → 要約を「run `port-keeper env` in that working copy to write its .env.local (do not write the file yourself)」に変え、サーバーの`Instructions`と`render_env`の説明に「番号を人に復唱しない」「`.env.local`はCLIに書かせる」を足した。(2) `dev.sh`の起動で`export WEB_PORT=NNNNN … && ./dev.sh`と番号をBashに埋め込んだ → READMEの「Local ports」指示ブロックとサーバーの`Instructions`に「コマンドに渡すときは`eval "$(port-keeper env --format export)"`を前置し、番号を貼らない」を足した。直後の再実行では`eval "$(port-keeper env --format export)" && ./dev.sh`になり、番号の露出は0になった。(3) この版のClaude CodeはMCPツールを遅延読み込みし、最初に`ToolSearch`を1回呼ぶ。また`num_turns`はツール呼び出しごとに増える → 往復数は「port-keeperとのやりとり（MCPツール＋`port-keeper`を実行するBash）」だけを数える
+- **`docs/examples/`は英語のみで翻訳しない**。翻訳の対象はREADMEだけ。3言語のREADMEの鏡写しは`scripts/readme_sync_check.sh`（見出し数・コードブロック数・表の行の並びを比べる）がCIの必須ジョブ`test`で検査する

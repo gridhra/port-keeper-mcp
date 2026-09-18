@@ -2,13 +2,21 @@
 
 メンテナ（と、メンテナの指示で作業するコーディングエージェント）向けの手順書。port-keeper-mcpのリリースは、`v<major>.<minor>.<patch>`形式のgitタグをpushするだけで、GitHub Actionsの`.github/workflows/release.yml`が最後まで行う。人の承認の段も、保存した認証トークンも無い。
 
-状態（2026-09-18）: 仕組みは実装済みで、最初のリリース`v0.1.0`はまだ出していない。したがって、この文書の手順は`release.yml`を実際のタグで動かした実績がまだ無い。初回に食い違いが見つかったら、この文書を直すこと。
+状態（2026-09-18）: `v0.1.0`を公開済みで、この文書の手順は`release.yml`を実際のタグで一度通している。次の版は`v0.2.0`（内容は`docs/ROADMAP.md`のM2.5）。手順に食い違いが見つかったら、この文書を直すこと。
 
 各節はその節だけで読めるように書いてある。
 
 ## 1. リリースの手順
 
-前提: 出したい変更がすべて`main`に入っていて、`main`のCIの3つのジョブが成功していること。`test (ubuntu-latest)`と`test (macos-latest)`はテストとlintで、`main`の保護で必須になっている。`release-config`はリリースの入力の検査（`shellcheck scripts/*.sh`と`goreleaser check`）で、必須には指定していないので、タグを打つ前に自分の目で確かめる。
+前提: 出したい変更がすべて`main`に入っていて、`main`のCIの3つのジョブが成功していること。`test (ubuntu-latest)`と`test (macos-latest)`はテストとlint（README 3言語の同期検査`scripts/readme_sync_check.sh`と、エージェントevalの組み立てだけの`scripts/agent_eval.sh --dry-run`を含む）で、`main`の保護で必須になっている。`release-config`はリリースの入力の検査（`shellcheck scripts/*.sh`、`scripts/agent_eval.sh --list`、`goreleaser check`）で、必須には指定していないので、タグを打つ前に自分の目で確かめる。
+
+タグを打つ前に、手元でエージェントevalを回す（リリースゲート。CIでは回らない）:
+
+```sh
+sh scripts/agent_eval.sh   # 3シナリオ。`claude`（ログイン済みなら定額プランで動く。APIキーは不要）、`jq`、`git`、`python3`が要る。1回あたり数十円相当
+```
+
+MCPを接続したClaude Codeに「slot 3のadminのURL」「未紐づけのworktreeに環境を用意」「dev.shの起動」をさせ、port-keeperとの往復数（MCPツールの呼び出しと`port-keeper`を実行するBash）と漏れた番号を数えて表にする。1つでもFAILなら終了コード1で、その版は出さない。結果は揺れるので、FAILが1回出たら文言を疑う前にもう1回回す。ツールの説明文やエラー文言を直して再実行する（`PK_EVAL_KEEP=1`でtempディレクトリの`s1.jsonl`等が残る）。結果の表はcommitメッセージかリリースノートに貼る。
 
 ```sh
 git switch main && git pull
@@ -194,4 +202,4 @@ sh scripts/glama.sh check-local dist/port-keeper_linux_amd64_v1/port-keeper
 
 ## 9. 文書
 
-利用者向けの文書を変えるときは、`README.md`（原本）、`README.ja.md`、`README.zh-CN.md`を同じcommitで直す。見出しの数とコードブロックの数を揃える。
+利用者向けの文書を変えるときは、`README.md`（原本）、`README.ja.md`、`README.zh-CN.md`を同じcommitで直す。見出しの数、コードブロックの数、CLI表とMCPツール表の行の並びを揃える（`sh scripts/readme_sync_check.sh`が検査し、CIの`test`ジョブでも走る）。`docs/examples/`は英語のみで、翻訳しない。
