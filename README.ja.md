@@ -37,7 +37,7 @@ port-keeperは、上に書いた問題を解く、いちばん単純な道具で
 - **仕事は1つ。** どの作業コピーの、どのサービスが、どのポートを持つかを決め、聞かれたら答えます。サーバーの起動は、タスクランナーの仕事のままです。きれいなホスト名が欲しければ、それはプロキシの仕事のままです。port-keeperはどちらにも番号を渡せますが、どちらの代わりにもなりません。
 - **部品が少ない。** 静的なバイナリが1つ、SQLiteのファイルが1つ、プロジェクトごとの小さなマニフェストが1つ。デーモンも、プロキシも、DNSも、証明書も、アカウントも要りません。
 - **エージェントから見える面が小さい。** MCPツールは8つで、既定で有効なのはそのうち6つです。エージェントは全体をひと目で把握でき、コンテキストをほとんど消費しません。
-- **いまの道具にそのまま収まる。** 書き出すのはただの環境変数で、行き先は`.env`、シェル、direnv、miseです。開発用のコマンドは変わりません。
+- **いまの道具にそのまま収まる。** 書き出すのはただの環境変数で、行き先は`.env`、シェル、direnv、miseです。開発用のコマンドは変わりません。mise、direnv、docker compose、Vite、Playwright、リバースプロキシとのつなぎ方は[docs/examples/](docs/examples/)（英語）にあります。
 - **やめるのも簡単。** MCPの登録とフックを外し、バイナリと台帳のファイルを消すだけです。port-keeperが書いた`.env.local`は普通のファイルなので、そのまま使えます。
 
 作らないと決めたものは、理由を添えて[非目標](#非目標意図的に作らないもの)に並べてあります。
@@ -130,7 +130,7 @@ claude mcp add --scope user port-keeper -- port-keeper mcp
 
 port-keeperは、特定のエージェントを前提にしていません。どのクライアントにも共通する契約は、次の2つのコマンドだけです。
 
-- `port-keeper context --json`: いまどこにいるか（プロジェクト、スロット、この作業コピーが使える状態か）と、次に何をすべきか。ポート番号は含みません。
+- `port-keeper context --json`: いまどこにいるか（プロジェクト、スロット、この作業コピーが使える状態か）、書き出した`.env.local`が古くなっていないか（`env_stale`）、次に何をすべきか。ポート番号は含みません。
 - `port-keeper env --format export --if-present`: 現在のスロットの環境変数を`export`行で。プロジェクト外では何も出力しません。
 
 クライアント固有の処理はすべて、この2つの上に載るアダプタです。`port-keeper hook claude`はClaude Codeのフックの仕様に合わせたアダプタで、1ファイルに収まっています。他のエージェント向けのアダプタも、核に手を入れずに追加できます。
@@ -170,6 +170,7 @@ Never choose a port number yourself and never start a server on an ad-hoc port.
 To find where something runs, call the `resolve_url` tool
 (or run `port-keeper url <project>/<slot>/<service>`).
 If a task needs a new port, add a service to `port-keeper.toml` and run `port-keeper env`.
+To give a command this slot's ports, prefix it with `eval "$(port-keeper env --format export)"`; never paste numbers into a command or a file.
 Refer to services by name (`shop/3/admin`), never by number, in docs, issues and chat.
 ```
 
@@ -195,7 +196,7 @@ Refer to services by name (`shop/3/admin`), never by number, in docs, issues and
 
 port-keeperの目的は、ポート番号について*考えなくて済む*ことであって、番号を*見なくて済む*ことではありません。`port-keeper url shop/5/admin`（またはツール`resolve_url`）が`http://localhost:23417`を返した時点で仕事は済んでいます。`--open`なら開くところまでやります。
 
-プロキシは、すべてのスロットが依存する常駐プロセスを1つ増やします。それが止まると全環境に一斉に到達できなくなり、どんなポート衝突より悪い壊れ方です。macOSでは特権ポート（80／443）が要り、TLSやWebSocketの転送まで面倒を見ることになり、「port-keeperは待ち受けない」という規則にも反します。さらに、ブラウザはCookieやlocalStorageを*ポートを含む*オリジンごとに分けるので、ポートが違うことこそがスロット間のセッションを分けているのです。1つのホスト名の裏に隠せば、その分離が消えます。それでもきれいなホスト名が欲しいなら、`port-keeper env --format json`の出力を、それを得意とする既存のプロキシ（portless、localias、devenv）に渡してください。port-keeperがプロキシを持つことはありません。
+プロキシは、すべてのスロットが依存する常駐プロセスを1つ増やします。それが止まると全環境に一斉に到達できなくなり、どんなポート衝突より悪い壊れ方です。macOSでは特権ポート（80／443）が要り、TLSやWebSocketの転送まで面倒を見ることになり、「port-keeperは待ち受けない」という規則にも反します。さらに、ブラウザはCookieやlocalStorageを*ポートを含む*オリジンごとに分けるので、ポートが違うことこそがスロット間のセッションを分けているのです。1つのホスト名の裏に隠せば、その分離が消えます。それでもきれいなホスト名が欲しいなら、`port-keeper env --format json`の出力を、それを得意とする既存のプロキシ（portless、localias、devenv。やり方は[docs/examples/reverse-proxy.md](docs/examples/reverse-proxy.md)）に渡してください。port-keeperがプロキシを持つことはありません。
 
 ### プロセス管理（start／stop／restart／kill）は作らない
 
@@ -231,7 +232,7 @@ Linuxなら、マウントやフラグで一部は取り繕えます。しかし
 
 ## セキュリティモデル
 
-port-keeperはローカルで完結する、ネットワークに出ない道具です。台帳はあなたの端末で何がどこでLISTENしているかの地図で、`~/.local/state/port-keeper/`にモード0600で置かれ、決して送信されません。同じ端末の別ユーザーに対してはこれで十分です。*あなた自身*として動くプロセスに対しては不十分で、ローカルの道具にそれを防ぐ手立てはありません。そのプロセスは既に`lsof -i`を実行できるからです。port-keeperがそこで行うのは、`lsof`より詳しい地図にならないこと（秘密情報なし、テナント名なし、短いラベル以外の説明なし）と、明示的に求められない限りエージェントに現在のプロジェクト以外を開示しないことです。`port-keeper doctor`が権限、`.gitignore`、port-keeper自身が待ち受けていないことを検査します。報告の方針と対象範囲は[SECURITY.md](SECURITY.md)を参照してください。
+port-keeperはローカルで完結する、ネットワークに出ない道具です。台帳はあなたの端末で何がどこでLISTENしているかの地図で、`~/.local/state/port-keeper/`にモード0600で置かれ、決して送信されません。同じ端末の別ユーザーに対してはこれで十分です。*あなた自身*として動くプロセスに対しては不十分で、ローカルの道具にそれを防ぐ手立てはありません。そのプロセスは既に`lsof -i`を実行できるからです。port-keeperがそこで行うのは、`lsof`より詳しい地図にならないこと（秘密情報なし、テナント名なし、短いラベル以外の説明なし）と、明示的に求められない限りエージェントに現在のプロジェクト以外を開示しないことです。`port-keeper doctor`が権限、`.gitignore`、port-keeper自身が待ち受けていないこと、そしてMCPクライアントの設定にポート番号やトークンが入っていないことを検査します。報告するのはファイルと項目の名前だけで、値は決して出しません。報告の方針と対象範囲は[SECURITY.md](SECURITY.md)を参照してください。
 
 ## リファレンス
 
@@ -288,17 +289,18 @@ host = "localhost"           # すべてのURLに使うホスト
 | コマンド | 役割 |
 |---|---|
 | `init [--name] [--here]` | マニフェストの雛形と`.gitignore`の行を書く。`--here`はgitのトップレベルではなく現在のディレクトリに書く（モノレポ向け） |
-| `slot new [name] [--infra-from s] [--no-bind]` / `slot ls [--pins]` / `slot rm name [--force] [--cascade]` | スロットの作成・一覧・解放。`new`は、現在の作業コピーが別スロットに紐づいていない限り、そのスロットに紐づける |
+| `slot new [name] [--from-branch] [--infra-from s] [--no-bind]` / `slot ls [--pins]` / `slot rm name [--force] [--cascade]` | スロットの作成・一覧・解放。`new`は、現在の作業コピーが別スロットに紐づいていない限り、そのスロットに紐づける。`--from-branch`は現在のgitブランチ名からスロット名を作る |
 | `env [--format f] [--stdout] [--if-present]` | 現在のスロットの環境変数を書き出す。`dotenv`（既定）は`.env.local`のマーカーブロックを書き換える。形式: `dotenv`、`export`、`json`、`mise`、`direnv`、`claude-env`（`export`の別名） |
 | `url <service>` / `url <project>/<slot>/<service>` `[--open]` | URLを1本表示する（または開く） |
-| `status` | 台帳と実際のLISTEN状態の突き合わせ |
-| `context [--json] [--if-present]` | この作業コピーのプロジェクト、スロット、使える状態か、次にすべきこと。番号は含まない。エージェントやシェル向けの、クライアントに依存しない契約 |
+| `status [--json]` | 台帳と実際のLISTEN状態の突き合わせ。`--json`はスクリプト向け |
+| `context [--json] [--if-present]` | この作業コピーのプロジェクト、スロット、使える状態か、次にすべきこと。`.env.local`がマニフェストや台帳と合わなくなっていれば`env_stale`。番号は含まない。エージェントやシェル向けの、クライアントに依存しない契約 |
 | `gc [--yes]` | `stale_days`より長く使われていないスロットと、作業コピーが消えたスロットを一覧（または解放）する |
-| `doctor [--fix]` | 権限、`.gitignore`、プールの妥当性、放置スロット、固定、自身の待ち受けが無いこと |
+| `doctor [--fix]` | 権限、`.gitignore`、プールの妥当性、放置スロット、固定、自身の待ち受けが無いこと、MCPクライアントの設定に番号やトークンが無いこと、追跡済みの`.env`が管理対象の変数を固定していないこと、`.env.local`が最新であること。検査に失敗があれば終了コード1 |
 | `pin <service> <port> --reason t [--force]` または `pin web=3001 api=3002 --reason t` / `unpin <service>…` または `unpin --all` | 移行の補助。「保証すること」を参照。まとめて指定する形なら、従来の配置を1コマンドで固定できる |
 | `reassign <service>` | サービスをプール内の別のポートへ移す（`status`が`hijacked`と報告した後に） |
 | `mcp` | stdioでMCPを提供する |
 | `hook claude` | Claude Codeの`SessionStart`と`CwdChanged`向けアダプタ。`context`と`env`を`$CLAUDE_ENV_FILE`とフックのJSONに変換する。プロジェクト外では無出力 |
+| `completion <shell>` | `zsh`、`bash`、`fish`用の補完スクリプトを出力する（`eval "$(port-keeper completion zsh)"`）。補完候補はマニフェストと台帳の名前だけで、番号は出さない |
 | `version`（または`--version`） | バージョンを表示する |
 | `--slot <name>` | グローバルフラグ。解決されたスロットではなく、指定したスロットに対して動く |
 
@@ -344,9 +346,11 @@ Go 1.25以上（SQLiteドライバとMCP SDKが要求します。`GOTOOLCHAIN`�
 ```sh
 go test ./...                    # 単体・プロパティ・インプロセスMCPのテスト
 go vet ./... && gofmt -l .
+sh scripts/readme_sync_check.sh  # 3つのREADMEが鏡写しになっているか（CIでも走る）
+sh scripts/agent_eval.sh --list  # 手動のエージェントeval。RELEASING.mdを参照
 ```
 
-リリースは`v*`タグのpushで行います。手順は[RELEASING.md](RELEASING.md)にあります。`sh scripts/install_test.sh`はインストールスクリプトのテストです。
+リリースは`v*`タグのpushで行います。手順は[RELEASING.md](RELEASING.md)にあります。`sh scripts/install_test.sh`はインストールスクリプトのテストです。`sh scripts/agent_eval.sh`は、MCPを接続したClaude Codeに日常的な3つの作業をさせ、往復数と漏れた番号を数えます。実際のモデルを動かすので、CIではなくリリース前に手で回すゲートです。
 
 変更提案にはOpenSpec（`openspec/`）を使っています。`openspec list`で一覧できます。
 

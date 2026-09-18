@@ -84,6 +84,8 @@ port-keeper is the simplest thing that solves the problem above:
   context.
 - **Fits what you already run.** It writes plain environment variables into
   `.env`, your shell, direnv or mise. Your dev command does not change.
+  [docs/examples/](docs/examples/) shows the wiring for mise, direnv, docker
+  compose, Vite, Playwright and reverse proxies.
 - **Easy to leave.** Remove the MCP entry and the hook, then delete the binary
   and the ledger file. The `.env.local` it wrote is an ordinary file and keeps
   working.
@@ -214,7 +216,8 @@ port-keeper knows nothing about any particular agent. The contract every
 client uses is two commands:
 
 - `port-keeper context --json`: where am I (project, slot, whether this
-  working copy is ready to use), and what to do next. No port numbers.
+  working copy is ready to use), whether the rendered `.env.local` is out of
+  date (`env_stale`), and what to do next. No port numbers.
 - `port-keeper env --format export --if-present`: the environment for the
   current slot as `export` lines; silent outside a project.
 
@@ -266,6 +269,7 @@ Never choose a port number yourself and never start a server on an ad-hoc port.
 To find where something runs, call the `resolve_url` tool
 (or run `port-keeper url <project>/<slot>/<service>`).
 If a task needs a new port, add a service to `port-keeper.toml` and run `port-keeper env`.
+To give a command this slot's ports, prefix it with `eval "$(port-keeper env --format export)"`; never paste numbers into a command or a file.
 Refer to services by name (`shop/3/admin`), never by number, in docs, issues and chat.
 ```
 
@@ -326,7 +330,8 @@ by origin *including the port*, so distinct ports are exactly what keep your
 slots' sessions apart; hiding them behind one hostname would remove that
 isolation. If you want pretty hostnames anyway, feed
 `port-keeper env --format json` to a proxy that already does this well
-(portless, localias, devenv). port-keeper will not grow one.
+(portless, localias, devenv; [docs/examples/reverse-proxy.md](docs/examples/reverse-proxy.md)
+shows how). port-keeper will not grow one.
 
 ### No process management (start / stop / restart / kill)
 
@@ -407,9 +412,10 @@ local tool can be: such a process can already run `lsof -i`. What port-keeper
 does about that is refuse to be a richer map than `lsof` (no secrets, no
 tenant names, no descriptions beyond a short label) and refuse to disclose
 more than the current project to an agent unless asked explicitly.
-`port-keeper doctor` checks the permissions, the `.gitignore`, and that
-nothing of port-keeper's is listening. See [SECURITY.md](SECURITY.md) for
-the reporting policy and what is in scope.
+`port-keeper doctor` checks the permissions, the `.gitignore`, that nothing
+of port-keeper's is listening, and that your MCP client configuration carries
+no port number or token; it names the file and the entry, never a value. See
+[SECURITY.md](SECURITY.md) for the reporting policy and what is in scope.
 
 ## Reference
 
@@ -468,17 +474,18 @@ services only), `${slot}`, `${slot.infra}`, `${project}`, `${block.base}`.
 | Command | Role |
 |---|---|
 | `init [--name] [--here]` | Write the manifest skeleton and the `.gitignore` entry. `--here` writes into the current directory instead of the git top level (monorepos) |
-| `slot new [name] [--infra-from s] [--no-bind]` / `slot ls [--pins]` / `slot rm name [--force] [--cascade]` | Create, list, release slots. `new` binds the current working copy to the slot unless it is already bound to another one |
+| `slot new [name] [--from-branch] [--infra-from s] [--no-bind]` / `slot ls [--pins]` / `slot rm name [--force] [--cascade]` | Create, list, release slots. `new` binds the current working copy to the slot unless it is already bound to another one; `--from-branch` names the slot after the current git branch |
 | `env [--format f] [--stdout] [--if-present]` | Render the current slot; `dotenv` (default) rewrites the marker block in `.env.local`. Formats: `dotenv`, `export`, `json`, `mise`, `direnv`, `claude-env` (alias of `export`) |
 | `url <service>` / `url <project>/<slot>/<service>` `[--open]` | Print (or open) one URL |
-| `status` | Ledger vs. what is listening |
-| `context [--json] [--if-present]` | Project, slot, readiness and guidance for this working copy. No numbers. The client-agnostic contract for agents and shells |
+| `status [--json]` | Ledger vs. what is listening; `--json` for scripts |
+| `context [--json] [--if-present]` | Project, slot, readiness and guidance for this working copy, and `env_stale` when `.env.local` no longer matches the manifest and the ledger. No numbers. The client-agnostic contract for agents and shells |
 | `gc [--yes]` | List (or release) slots idle for longer than `stale_days`, and slots whose working copy is gone |
-| `doctor [--fix]` | Permissions, `.gitignore`, pool sanity, stale slots, pins, no listener of our own |
+| `doctor [--fix]` | Permissions, `.gitignore`, pool sanity, stale slots, pins, no listener of our own, MCP client configs without numbers or tokens, tracked `.env` files that fix a managed variable, `.env.local` up to date. Exits 1 when a check fails |
 | `pin <service> <port> --reason t [--force]` or `pin web=3001 api=3002 --reason t` / `unpin <service>…` or `unpin --all` | Migration aid; see Guarantees. The batch form pins a whole legacy layout in one command |
 | `reassign <service>` | Move a service to another pooled port (after `status` reports `hijacked`) |
 | `mcp` | Serve MCP over stdio |
 | `hook claude` | Claude Code adapter for `SessionStart` and `CwdChanged`: `context` + `env` translated into `$CLAUDE_ENV_FILE` and hook JSON; silent outside a project |
+| `completion <shell>` | Print the completion script for `zsh`, `bash` or `fish` (`eval "$(port-keeper completion zsh)"`); candidates are names from the manifest and the ledger, never numbers |
 | `version` (or `--version`) | Print the version |
 | `--slot <name>` | Global flag: act on that slot instead of the resolved one |
 
@@ -531,10 +538,15 @@ the toolchain automatically when `GOTOOLCHAIN` is left at its default).
 ```sh
 go test ./...                    # unit, property and in-process MCP tests
 go vet ./... && gofmt -l .
+sh scripts/readme_sync_check.sh  # the three READMEs mirror each other (CI runs it too)
+sh scripts/agent_eval.sh --list  # the manual agent eval; see RELEASING.md
 ```
 
 Releases are cut by pushing a `v*` tag; [RELEASING.md](RELEASING.md) has the
 procedure (Japanese). `sh scripts/install_test.sh` tests the install script.
+`sh scripts/agent_eval.sh` gives an MCP-connected Claude Code three everyday
+tasks and counts round trips and leaked numbers; it runs a real model, so it
+is a manual gate before each release rather than a CI job.
 
 The project uses OpenSpec (`openspec/`) for change proposals; run
 `openspec list` to see them.

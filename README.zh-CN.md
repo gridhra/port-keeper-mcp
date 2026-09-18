@@ -37,7 +37,7 @@ port-keeper 是能解决上述问题的最简单的工具：
 - **只做一件事。** 它决定哪份工作副本的哪个服务拥有哪个端口，并在被问到时回答。启动服务器仍然是任务运行器的事；想要好看的主机名，那仍然是代理的事。port-keeper 可以给两者提供端口号，但不取代其中任何一个。
 - **部件很少。** 一个静态二进制文件，一个 SQLite 文件，每个项目一份很小的清单。不需要守护进程、代理、DNS、证书，也不需要账号。
 - **对 agent 暴露的面很小。** 一共 8 个 MCP 工具，默认启用其中 6 个。agent 一眼就能掌握整个接口，几乎不占上下文。
-- **融入你现有的工具。** 它写出的只是普通的环境变量，去处是 `.env`、shell、direnv 或 mise。你的开发命令不用改。
+- **融入你现有的工具。** 它写出的只是普通的环境变量，去处是 `.env`、shell、direnv 或 mise。你的开发命令不用改。与 mise、direnv、docker compose、Vite、Playwright 和反向代理的接法见 [docs/examples/](docs/examples/)（英文）。
 - **想弃用也很容易。** 去掉 MCP 注册和 hook，再删掉二进制文件和台账文件即可。它写出的 `.env.local` 是普通文件，可以照常使用。
 
 它不做的事情及其理由，都列在[非目标](#非目标)里。
@@ -130,7 +130,7 @@ claude mcp add --scope user port-keeper -- port-keeper mcp
 
 port-keeper 对任何具体的 agent 都一无所知。所有客户端共用的契约就是两条命令：
 
-- `port-keeper context --json`：我在哪里（项目、槽位、这份工作副本是否可以直接使用），以及接下来该做什么。不含端口号。
+- `port-keeper context --json`：我在哪里（项目、槽位、这份工作副本是否可以直接使用）、写出的 `.env.local` 是否已经过期（`env_stale`），以及接下来该做什么。不含端口号。
 - `port-keeper env --format export --if-present`：当前槽位的环境，以 `export` 行输出；在项目之外则静默。
 
 所有与具体客户端相关的东西都是架在这两条命令之上的适配器。`port-keeper hook claude` 就是 Claude Code hook 协议的适配器；它只占一个文件，其他 agent 也可以拥有自己的适配器，而不必改动内核。
@@ -172,6 +172,7 @@ Never choose a port number yourself and never start a server on an ad-hoc port.
 To find where something runs, call the `resolve_url` tool
 (or run `port-keeper url <project>/<slot>/<service>`).
 If a task needs a new port, add a service to `port-keeper.toml` and run `port-keeper env`.
+To give a command this slot's ports, prefix it with `eval "$(port-keeper env --format export)"`; never paste numbers into a command or a file.
 Refer to services by name (`shop/3/admin`), never by number, in docs, issues and chat.
 ```
 
@@ -197,7 +198,7 @@ Refer to services by name (`shop/3/admin`), never by number, in docs, issues and
 
 port-keeper 的目标是让你不必*去想*端口号，而不是让你永远*看不到*端口号。一旦 `port-keeper url shop/5/admin`（或 `resolve_url` 工具）给出 `http://localhost:23417`，事情就办完了；`--open` 甚至还替你打开它。
 
-代理会引入一个所有槽位都依赖的常驻进程。它一停，所有环境同时变得不可达，这是比任何端口冲突都更糟的失效模式。它在 macOS 上需要特权端口（80/443），会把 TLS 和 WebSocket 转发拖进范围，并且与“port-keeper 从不监听”这条规则相矛盾。最后，浏览器按来源（origin）划分 cookie 和 local storage，*而来源包含端口*，所以不同的端口恰恰是把各槽位的会话隔开的东西；把它们藏到同一个主机名后面会消掉这层隔离。如果你还是想要好看的主机名，就把 `port-keeper env --format json` 喂给那些已经把这件事做得很好的代理（portless、localias、devenv）。port-keeper 不会长出这个功能。
+代理会引入一个所有槽位都依赖的常驻进程。它一停，所有环境同时变得不可达，这是比任何端口冲突都更糟的失效模式。它在 macOS 上需要特权端口（80/443），会把 TLS 和 WebSocket 转发拖进范围，并且与“port-keeper 从不监听”这条规则相矛盾。最后，浏览器按来源（origin）划分 cookie 和 local storage，*而来源包含端口*，所以不同的端口恰恰是把各槽位的会话隔开的东西；把它们藏到同一个主机名后面会消掉这层隔离。如果你还是想要好看的主机名，就把 `port-keeper env --format json` 喂给那些已经把这件事做得很好的代理（portless、localias、devenv；做法见 [docs/examples/reverse-proxy.md](docs/examples/reverse-proxy.md)）。port-keeper 不会长出这个功能。
 
 ### 不做进程管理（start / stop / restart / kill）
 
@@ -233,7 +234,7 @@ port-keeper 必须直接看到属于你这台机器的四样东西：宿主机�
 
 ## 安全模型
 
-port-keeper 是一个本地的、不联网的工具。台账是一张“机器上什么监听在哪里”的地图；它存放在 `~/.local/state/port-keeper/` 下，权限 0600，并且从不被传输。对于同一台机器上的另一个用户，这样就足够了。对于以*你的身份*运行的进程则不够，而且任何本地工具都做不到：这样的进程本来就能跑 `lsof -i`。port-keeper 对此所做的，是拒绝成为一张比 `lsof` 更丰富的地图（不存密钥、不存租户名、除了一个短标签之外不存任何描述），并且拒绝在没有被明确要求时向 agent 披露当前项目之外的信息。`port-keeper doctor` 会检查权限、`.gitignore`，以及 port-keeper 自己没有任何东西在监听。报告策略和涉及范围见 [SECURITY.md](SECURITY.md)。
+port-keeper 是一个本地的、不联网的工具。台账是一张“机器上什么监听在哪里”的地图；它存放在 `~/.local/state/port-keeper/` 下，权限 0600，并且从不被传输。对于同一台机器上的另一个用户，这样就足够了。对于以*你的身份*运行的进程则不够，而且任何本地工具都做不到：这样的进程本来就能跑 `lsof -i`。port-keeper 对此所做的，是拒绝成为一张比 `lsof` 更丰富的地图（不存密钥、不存租户名、除了一个短标签之外不存任何描述），并且拒绝在没有被明确要求时向 agent 披露当前项目之外的信息。`port-keeper doctor` 会检查权限、`.gitignore`、port-keeper 自己没有任何东西在监听，以及你的 MCP 客户端配置里没有端口号或令牌；它只报告文件和条目的名字，从不报告值。报告策略和涉及范围见 [SECURITY.md](SECURITY.md)。
 
 ## 参考
 
@@ -290,17 +291,18 @@ host = "localhost"           # 所有 URL 中使用的主机名
 | 命令 | 作用 |
 |---|---|
 | `init [--name] [--here]` | 写出清单骨架和 `.gitignore` 条目。`--here` 写入当前目录而不是 git 顶层目录（monorepo 用） |
-| `slot new [name] [--infra-from s] [--no-bind]` / `slot ls [--pins]` / `slot rm name [--force] [--cascade]` | 创建、列出、释放槽位。`new` 会把当前工作副本绑定到该槽位，除非它已经绑定到别的槽位 |
+| `slot new [name] [--from-branch] [--infra-from s] [--no-bind]` / `slot ls [--pins]` / `slot rm name [--force] [--cascade]` | 创建、列出、释放槽位。`new` 会把当前工作副本绑定到该槽位，除非它已经绑定到别的槽位；`--from-branch` 用当前 git 分支名给槽位命名 |
 | `env [--format f] [--stdout] [--if-present]` | 渲染当前槽位；`dotenv`（默认）会重写 `.env.local` 里的标记区块。格式有：`dotenv`、`export`、`json`、`mise`、`direnv`、`claude-env`（`export` 的别名） |
 | `url <service>` / `url <project>/<slot>/<service>` `[--open]` | 打印（或打开）一个 URL |
-| `status` | 台账与实际监听情况的对比 |
-| `context [--json] [--if-present]` | 这份工作副本的项目、槽位、就绪状态和下一步指引。不含数字。这是面向 agent 和 shell 的、与客户端无关的契约 |
+| `status [--json]` | 台账与实际监听情况的对比；`--json` 供脚本使用 |
+| `context [--json] [--if-present]` | 这份工作副本的项目、槽位、就绪状态和下一步指引；当 `.env.local` 与清单和台账不再一致时给出 `env_stale`。不含数字。这是面向 agent 和 shell 的、与客户端无关的契约 |
 | `gc [--yes]` | 列出（或释放）闲置超过 `stale_days` 的槽位，以及工作副本已不存在的槽位 |
-| `doctor [--fix]` | 权限、`.gitignore`、端口池是否合理、过期槽位、固定端口、我们自己没有在监听 |
+| `doctor [--fix]` | 权限、`.gitignore`、端口池是否合理、过期槽位、固定端口、我们自己没有在监听、MCP 客户端配置里没有数字或令牌、被 git 跟踪的 `.env` 没有把受管变量写死、`.env.local` 是最新的。有检查失败时以 1 退出 |
 | `pin <service> <port> --reason t [--force]` 或 `pin web=3001 api=3002 --reason t` / `unpin <service>…` 或 `unpin --all` | 迁移辅助；见“保证”一节。批量形式可以用一条命令固定整套历史端口布局 |
 | `reassign <service>` | 把一个服务挪到端口池中的另一个端口（在 `status` 报出 `hijacked` 之后） |
 | `mcp` | 通过 stdio 提供 MCP 服务 |
 | `hook claude` | 面向 `SessionStart` 和 `CwdChanged` 的 Claude Code 适配器：把 `context` + `env` 翻译成 `$CLAUDE_ENV_FILE` 和 hook JSON；在项目之外静默 |
+| `completion <shell>` | 打印 `zsh`、`bash` 或 `fish` 的补全脚本（`eval "$(port-keeper completion zsh)"`）；候选项只有清单和台账里的名字，从不出现数字 |
 | `version`（或 `--version`） | 打印版本 |
 | `--slot <name>` | 全局参数：对指定槽位而不是解析出来的槽位执行操作 |
 
@@ -346,9 +348,11 @@ enable_list_all = false     # 设为 true 才会注册 list_all_projects
 ```sh
 go test ./...                    # 单元测试、属性测试，以及进程内的 MCP 测试
 go vet ./... && gofmt -l .
+sh scripts/readme_sync_check.sh  # 三份 README 是否互为镜像（CI 也会跑）
+sh scripts/agent_eval.sh --list  # 手动的 agent 评测；见 RELEASING.md
 ```
 
-发布通过推送 `v*` 标签完成，步骤见 [RELEASING.md](RELEASING.md)（日语）。`sh scripts/install_test.sh` 用于测试安装脚本。
+发布通过推送 `v*` 标签完成，步骤见 [RELEASING.md](RELEASING.md)（日语）。`sh scripts/install_test.sh` 用于测试安装脚本。`sh scripts/agent_eval.sh` 会让接入了 MCP 的 Claude Code 完成三项日常任务，并统计往返次数和泄露的数字；它会真正运行模型，所以是每次发布前手动执行的关卡，而不是 CI 任务。
 
 本项目用 OpenSpec（`openspec/`）管理变更提案；运行 `openspec list` 可以查看它们。
 
