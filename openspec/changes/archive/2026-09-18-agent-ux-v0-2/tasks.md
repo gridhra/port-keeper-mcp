@@ -34,5 +34,5 @@
   ```
 - [x] 4.2 `main`にcommitしてpushし、CIの3ジョブが緑であることを確かめた（2026-09-18、10commit）
 - [x] 4.3 `v0.2.0`のタグをpushした（ユーザーの指示「release」による）。確認: `release.yml`成功、Releaseは公開済みで変更不可、6アーカイブ＋`checksums.txt`、チェックサムと来歴の証明が通り、インストールスクリプトで入れ直した`port-keeper --version`が`0.2.0`、`doctor`緑、既存のリースはそのまま
-- [ ] 4.4 Glamaの版を更新する（`RELEASING.md` §8）。確認: Glamaで`0.2.0`が`latest`
+- [x] 4.4 Glamaの版を更新した（`RELEASING.md` §8。`glama.sh check 0.2.0`がOK、フォームのBuildが`success`で6ツール、Create Releaseで版を`0.2.0`に直して公開）。確認: Admin → Releasesで`0.2.0`が`Latest`、Auto-Releaseはオフ
 - [x] 4.5 本changeをアーカイブし、主specに`doctor`と`shell-completion`を同期した。確認: `openspec list`が空
