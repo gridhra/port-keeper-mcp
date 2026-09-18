@@ -39,12 +39,14 @@ func New(a *app.App, cwd, slot, version string) *mcp.Server {
 		Instructions: "port-keeper is the ledger of local development ports on this machine. " +
 			"Never choose a port number yourself or start a server on an ad-hoc port. " +
 			"Use resolve_url to find where a service runs; use render_env to get the environment for the current slot. " +
-			"Refer to services by name (project/slot/service), not by number, in anything you write.",
+			"Refer to services by name (project/slot/service), not by number, in anything you write, and do not repeat port numbers back to the user. " +
+			"To give a shell command this slot's ports, prefix it with eval \"$(port-keeper env --format export)\" instead of typing numbers. " +
+			"To write .env.local, run the `port-keeper env` command; never write that file yourself.",
 	})
 	mcp.AddTool(srv, &mcp.Tool{Name: "current_context", Description: "The project and slot resolved from the working directory, with the service names. Returns no port numbers.", Annotations: readOnly}, s.currentContext)
 	mcp.AddTool(srv, &mcp.Tool{Name: "resolve_url", Description: "Full URL (e.g. http://localhost:23417) of one service in the current slot. Pass project and slot to look up another project; both are required together.", Annotations: readOnly}, s.resolveURL)
 	mcp.AddTool(srv, &mcp.Tool{Name: "resolve_port", Description: "Bare port number of one service. Prefer resolve_url unless the caller needs the number itself (a tcp service, a config value).", Annotations: readOnly}, s.resolvePort)
-	mcp.AddTool(srv, &mcp.Tool{Name: "render_env", Description: "Every environment variable of the current slot (service ports, derived values, PORT_KEEPER_PROJECT/SLOT) in a format: dotenv, export, json, mise, direnv or claude-env. Leases ports for services that have none yet.", Annotations: mutating}, s.renderEnv)
+	mcp.AddTool(srv, &mcp.Tool{Name: "render_env", Description: "Every environment variable of the current slot (service ports, derived values, PORT_KEEPER_PROJECT/SLOT) in a format: dotenv, export, json, mise, direnv or claude-env. Leases ports for services that have none yet. For your own use: to write .env.local run the `port-keeper env` command instead of writing the file by hand, and do not echo these numbers to the user.", Annotations: mutating}, s.renderEnv)
 	mcp.AddTool(srv, &mcp.Tool{Name: "status", Description: "Ledger versus reality for the current slot: each service's state (leased, active, stale, hijacked) and the listening process when known.", Annotations: readOnly}, s.status)
 	mcp.AddTool(srv, &mcp.Tool{Name: "slot_new", Description: "Create a slot for the current project and lease its ports. Returns the existing slot when the name is taken. Omit name for the next free number.", Annotations: mutating}, s.slotNew)
 	if a.Cfg.MCP.EnableRelease {
@@ -356,7 +358,7 @@ func (s *Server) slotNew(ctx context.Context, _ *mcp.CallToolRequest, in SlotNew
 	if created {
 		verb = "created"
 	}
-	return text(fmt.Sprintf("slot %s/%s %s; call render_env for its environment", r.Project, r.Slot, verb)), out, nil
+	return text(fmt.Sprintf("slot %s/%s %s; run `port-keeper env` in that working copy to write its .env.local (do not write the file yourself)", r.Project, r.Slot, verb)), out, nil
 }
 
 // SlotReleaseIn releases a slot.
