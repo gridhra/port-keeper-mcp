@@ -109,7 +109,23 @@ Glama（https://glama.ai 。MCPサーバーの登録・評価サイト）は、a
 
 Glamaが使うコンテナは、この動作確認のためだけのものである。送られるのは`initialize`と`tools/list`だけで、ポートの確認やプロジェクトの解決は走らない。「コンテナイメージは配らない」という方針とは矛盾しない。
 
-状態（2026-09-18）: Glamaにはまだ登録していない。下の手順は、atx-mcpで確立した手順（`../asset-transform-mcp/RELEASING.md`の「6. Glama」）をport-keeper向けに書き直したもので、port-keeperでの実績はまだ無い。初回は、サーバーの追加と所有の申告（claim）から始まる。その画面の手順は、実施したときにこの節へ書き足すこと。
+状態（2026-09-18）: 登録済み。Glama上のリリース`0.1.0`を公開し、READMEにスコアのバッジを載せた。この節の手順は、すべてport-keeperで一度通した。
+
+### 8.0 初回だけ: サーバーを審査に出す（2026-09-18に実施）
+
+Glamaは、登録されていないリポジトリのDockerfileの設定画面を開かせない。先に https://glama.ai/mcp/servers の「Add Server」から審査に出し、承認のメールを待つ。
+
+1. GitHubアカウント`gridhra`でログインする（画面右上が「Sign Up」なら未ログイン。ログインは人が行う）
+2. https://glama.ai/mcp/servers の右上「Add Server」を押す。「Runs from source」のタブのまま、3つの欄を入れて「Submit for Review」を押す
+
+| 欄 | 入れた値 |
+|---|---|
+| Name | `port-keeper-mcp` |
+| Description | `Local ledger for development ports: leases a block of ports per project slot (one per working copy), renders env files, and resolves service names to URLs. No daemon, no listener.` |
+| GitHub Repository URL | `https://github.com/gridhra/port-keeper-mcp` |
+
+3. 「Your server has been submitted for review」と出れば送信済み。送信の直後は、サーバーのページ（`/mcp/servers/gridhra/port-keeper-mcp`）はまだ「not found」のままである
+4. 承認されると「has been approved and listed on Glama」というメールが届く（初回は数十分だった）。登録したGitHubアカウントがリポジトリの所有者なので、所有の申告（claim）は別に要らず、承認と同時にAdminタブが使える。届いたら8.1から進める
 
 作業はClaude CodeがChrome（Claude in Chrome拡張）で操作し、ログインなどの認証だけを人に頼む前提で書く。
 
@@ -128,7 +144,8 @@ go run github.com/goreleaser/goreleaser/v2@v2.18.2 release --snapshot --clean
 sh scripts/glama.sh check-local dist/port-keeper_linux_amd64_v1/port-keeper
 ```
 
-- 由来: atx-mcpのv0.5.0は、ツールの`outputSchema`の最上位に`type: "object"`が無く、`mcp-proxy`が`tools/list`全体を拒否してGlamaのチェックに落ちた。サーバー側のテストでは検出できなかった。port-keeperでは2026-09-18に`check-local`で6ツールの一覧が取れることを確かめてある
+- 由来: atx-mcpのv0.5.0は、ツールの`outputSchema`の最上位に`type: "object"`が無く、`mcp-proxy`が`tools/list`全体を拒否してGlamaのチェックに落ちた。サーバー側のテストでは検出できなかった。port-keeperでは2026-09-18に`check 0.1.0`で6ツールの一覧が取れることを確かめてある
+- Glamaのフォームの既定値は変わる。2026-09-18の初回登録では、`mcp-proxy`の版が手元のスクリプト（6.4.3）と画面のプレビュー（6.7.16）で違っていた。8.2の手順1のとおり、スクリプトの変数を画面に合わせてから検証をやり直した
 - 失敗したら、Glamaには触らずに原因を直す。Glamaに出しても同じ理由で落ちる
 
 ### 8.2 フォームを更新してビルドする
@@ -164,14 +181,14 @@ sh scripts/glama.sh check-local dist/port-keeper_linux_amd64_v1/port-keeper
 
 ### 8.4 注意
 
-- **Auto-Release**（Admin → Releasesの切り替え。GitHub ReleaseのたびにGlamaが自動でビルドとリリースを行う機能）は**オフにする**
+- **Auto-Release**（Admin → Releasesの切り替え。GitHub ReleaseのたびにGlamaが自動でビルドとリリースを行う機能）は**オフにする**。登録直後の既定はオンだった（2026-09-18）ので、初回は8.3の前にオフにする
   - 由来: ビルド手順がバイナリの版を固定しているので、自動で作られる版は、フォームに残っている古い版のバイナリになり、それが`latest`として出てしまう（atx-mcpで確認）
 - ログインは人が行う。Claude Codeは、ログイン画面に来たら止まって依頼する
 - Glamaの画面の構成やフォームの既定値は変わりうる。この節の記述と画面が違ったら、画面を正として進め、終わったらこの節を直す
 
 ### 8.5 awesome-mcp-serversへの掲載
 
-条件は、Glamaでの所有の申告、Glamaのチェックの通過、READMEのGlamaのバッジの3つ（点数の下限は無い。2026-09時点、atx-mcpで確認）。書式は、その時点の`punkpeye/awesome-mcp-servers`の`CONTRIBUTING.md`と、atx-mcpの掲載行（同リポジトリのREADMEで`atx-mcp`を検索）を手本にする。分類は「Developer Tools」を第一候補とし、説明のたたき台は「Local ledger for development ports: leases a block per project slot, renders env files, resolves service names to URLs. No daemon, no listener.」。PRは外部への送信なので、Claude Codeは文面（分類、1行の説明、バッジ）をメンテナに示して確認を取ってから出す。出したPRのURLは、ここに記録する。
+条件は、Glamaでの登録（所有者として）、Glamaのチェックの通過、READMEのGlamaのバッジの3つ。バッジは、Admin → GitHub Badgeにある「Score Badge」のマークダウンを、3言語のREADMEの言語切り替えの行の直下に置いた（2026-09-18）（点数の下限は無い。2026-09時点、atx-mcpで確認）。書式は、その時点の`punkpeye/awesome-mcp-servers`の`CONTRIBUTING.md`と、atx-mcpの掲載行（同リポジトリのREADMEで`atx-mcp`を検索）を手本にする。分類は「Developer Tools」を第一候補とし、説明のたたき台は「Local ledger for development ports: leases a block per project slot, renders env files, resolves service names to URLs. No daemon, no listener.」。PRは外部への送信なので、Claude Codeは文面（分類、1行の説明、バッジ）をメンテナに示して確認を取ってから出す。出したPRのURLは、ここに記録する。
 
 - PR: （未提出）
 

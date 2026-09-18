@@ -28,7 +28,7 @@ REPO=gridhra/port-keeper-mcp
 # If Glama's Dockerfile preview differs, change these to match.
 GLAMA_BASE_IMAGE=debian:trixie-slim
 GLAMA_NODE_MAJOR=26
-GLAMA_MCP_PROXY=mcp-proxy@6.4.3
+GLAMA_MCP_PROXY=mcp-proxy@6.7.16
 
 check_version() {
   printf '%s' "$1" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || die "version must be X.Y.Z (no leading v): $1"
