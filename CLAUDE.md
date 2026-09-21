@@ -32,13 +32,13 @@ Go 1.25以上（ツールチェーンは自動取得される）。テストは`
 
 - 変更はOpenSpecのchange（`/opsx:propose`）から始める。軽微な修正は例外。changeは完了させたPRの中でアーカイブする。
 - commit: `<type>: <subject>`を英語で、要点を数行の箇条書きで、1commitに1つの関心事。`git add <ファイル>`を明示し、`-A`は使わない。`main`は保護されていてCI（`test (ubuntu-latest)`、`test (macos-latest)`）の成功が必須。直接pushは小さくテスト済みの変更に限る。
-- 文書: `README.md`が原本。`README.ja.md`と`README.zh-CN.md`は節ごとの鏡写し（見出し数・コードブロック数・表の行の並びを揃える。`sh scripts/readme_sync_check.sh`が検査する）で、同じcommitで更新する。`docs/examples/`は英語のみで翻訳しない。`docs/DESIGN.md`、`docs/ROADMAP.md`、`openspec/`は日本語。issueテンプレートは英語と日本語の両方がある。
+- 文書: `README.md`が原本。`README.ja.md`と`README.zh-CN.md`は節ごとの鏡写し（見出し数・コードブロック数・表の行の並びを揃える。`sh scripts/readme_sync_check.sh`が検査する）で、同じcommitで更新する。`docs/examples/`は英語のみで翻訳しない。`docs/DESIGN.md`、`docs/ROADMAP.md`、`openspec/`は日本語。issueテンプレートは英語と日本語の両方がある。進捗・予定・タスクの一覧は`CLAUDE.md`ではなく`docs/ROADMAP.md`に書く。
 - READMEに「見れば分かる」「エージェントに聞けば分かる」類の注記を足さない。非目標の節の強い調子は保つ。
 - 日本語の文中で、半角英数字の前後に半角スペースを入れない（`AIに開発させる`であって`AI に開発させる`ではない）。
 
-## 現状
+## どこを読むか
 
-`docs/ROADMAP.md`を参照。M0（台帳コア）とM1（MCP）は完了。M2（配布）は完了し、`v0.1.0`を公開してGlamaに登録した。M2.5（Agent UXの仕上げ: `doctor`の追加検査、`.env.local`の古さ検出、`status --json`、`slot new --from-branch`、`completion`、`docs/examples/`、README同期検査、エージェントeval）は完了し、`v0.2.0`を公開した。決定と理由は`docs/DESIGN.md`の§9.3。awesome-mcp-serversに掲載済み（2026-09-21）。リリースの手順、失敗したときのやり直し、Glamaの手順は`RELEASING.md`にある。npmラッパーとコンテナイメージは作らないと決めている（理由は`docs/DESIGN.md`の§9.2）。MCP公式レジストリへの登録は未定（ROADMAPのM3）。Windowsはコンパイルのみで未検証。
+進捗と予定はこのファイルに書かない（毎セッション読み込まれるので、消化したら消える情報を置かない）。何がどこまで済んでいて次に何をするかは`docs/ROADMAP.md`、実装中に決まったことと理由は`docs/DESIGN.md`の§9、リリース・やり直し・Glamaの手順は`RELEASING.md`、やらないと決めたことはREADMEのNon-goalsと`docs/DESIGN.md`の§9.2を読む。
 
 配布まわりで破りやすい規則:
 
