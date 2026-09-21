@@ -198,7 +198,7 @@ sh scripts/glama.sh check-local dist/port-keeper_linux_amd64_v1/port-keeper
 
 条件は、Glamaでの登録（所有者として）、Glamaのチェックの通過、READMEのGlamaのバッジの3つ。バッジは、Admin → GitHub Badgeにある「Score Badge」のマークダウンを、3言語のREADMEの言語切り替えの行の直下に置いた（2026-09-18）（点数の下限は無い。2026-09時点、atx-mcpで確認）。書式は、その時点の`punkpeye/awesome-mcp-servers`の`CONTRIBUTING.md`と、atx-mcpの掲載行（同リポジトリのREADMEで`atx-mcp`を検索）を手本にする。分類は「Developer Tools」を第一候補とし、説明のたたき台は「Local ledger for development ports: leases a block per project slot, renders env files, resolves service names to URLs. No daemon, no listener.」。PRは外部への送信なので、Claude Codeは文面（分類、1行の説明、バッジ）をメンテナに示して確認を取ってから出す。出したPRのURLは、ここに記録する。
 
-- PR: https://github.com/punkpeye/awesome-mcp-servers/pull/14635 （2026-09-18提出。英語版に加えて`README-ja.md`と`README-zh.md`にも1行ずつ足した。翻訳版は本家が同期するのではなく、投稿者が任意で足す運用で、そうしたPRがマージされた実績がある）
+- PR: https://github.com/punkpeye/awesome-mcp-servers/pull/14635 （2026-09-18提出、2026-09-21マージ。マージ後、atx-mcpと同じ「Mentioned in Awesome MCP Servers」バッジ（`https://awesome.re/mentioned-badge.svg`）を3言語のREADMEでGlamaのバッジの直下に置いた。英語版に加えて`README-ja.md`と`README-zh.md`にも1行ずつ足した。翻訳版は本家が同期するのではなく、投稿者が任意で足す運用で、そうしたPRがマージされた実績がある）
 
 ## 9. 文書
 

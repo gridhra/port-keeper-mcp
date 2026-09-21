@@ -25,7 +25,7 @@
 ### M2 — 配布 — 完了（2026-09-18）
 
 `v*`タグのpushで動くリリース（GitHub Actionsの`release.yml`とGoReleaser。macOS／Linux／Windows、arm64／amd64の6アーカイブ、`checksums.txt`、ビルド来歴の証明、公開後に変更できないRelease）、インストールスクリプト（`scripts/install.sh`／`install.ps1`。チェックサムの照合が必須で、`sudo`を使わない）、台帳のスキーマの版、README 3言語の導入手順、メンテナ向けの`RELEASING.md`、Glama（MCPサーバーの登録・評価サイト）への提出前検証（`scripts/glama.sh`）。
-`v0.1.0`を公開し、Glamaに登録した。awesome-mcp-serversへの掲載PRは提出済み（#14635）。手順と記録は`RELEASING.md`。
+`v0.1.0`を公開し、Glamaに登録した。awesome-mcp-serversに掲載された（PR #14635、2026-09-21マージ）。手順と記録は`RELEASING.md`。
 完了条件: 新しい端末で5分で導入でき、`doctor`が緑。
 
 当初の案から変えた点（理由は`docs/DESIGN.md`の§9.2）:

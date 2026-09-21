@@ -3,6 +3,7 @@
 [English](README.md) | [日本語](README.ja.md) | **简体中文**
 
 [![port-keeper-mcp MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/gridhra/port-keeper-mcp/badges/score.svg)](https://glama.ai/mcp/servers/gridhra/port-keeper-mcp)
+[![Mentioned in Awesome MCP Servers](https://awesome.re/mentioned-badge.svg)](https://github.com/punkpeye/awesome-mcp-servers)
 
 一个管理开发端口的本地台账，并在其上提供 MCP 服务器，用 Go 编写。它给每个并行运行的编码 agent 一整套专属端口，让每个 agent 都能和其他 agent 同时把整套应用跑起来。
 

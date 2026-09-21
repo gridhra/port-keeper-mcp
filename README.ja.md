@@ -3,6 +3,7 @@
 [English](README.md) | **日本語** | [简体中文](README.zh-CN.md)
 
 [![port-keeper-mcp MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/gridhra/port-keeper-mcp/badges/score.svg)](https://glama.ai/mcp/servers/gridhra/port-keeper-mcp)
+[![Mentioned in Awesome MCP Servers](https://awesome.re/mentioned-badge.svg)](https://github.com/punkpeye/awesome-mcp-servers)
 
 ローカル開発で使うポート番号の台帳と、その上に載せたMCPサーバーです。Goで書かれています。並列で動かすコーディングエージェントの1つ1つに専用のポート一式を渡すので、どのエージェントも、ほかのエージェントと同時にアプリケーション全体を起動できます。
 
